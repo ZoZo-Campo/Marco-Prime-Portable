@@ -1,0 +1,68 @@
+services:
+  data-permissions:
+    image: marco-prime:local
+    user: "0:0"
+    entrypoint: ["sh", "-c", "chown -R 1000:1000 /app/data"]
+    volumes:
+      - marco_prime_data:/app/data
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+
+  marco-prime:
+    build:
+      context: .
+      dockerfile: Dockerfile.orange-pi
+    image: marco-prime:local
+    depends_on:
+      data-permissions:
+        condition: service_completed_successfully
+    init: true
+    # Relance le service s'il plante pendant une soirée, mais pas au démarrage
+    # de Debian : Marco est lancé volontairement depuis l'icône du Bureau.
+    restart: "on-failure:5"
+    env_file:
+      - .env.orange-pi
+    environment:
+      # Le service écoute toujours sur 3000 dans le conteneur. Seul
+      # MARCO_HOST_PORT change le port visible sur le Mac/Raspberry.
+      API_PORT: "3000"
+      # La base Fouaille utilise l'heure française pour ses TIMESTAMP.
+      TZ: "${TZ:-Europe/Paris}"
+    ports:
+      - "127.0.0.1:${MARCO_HOST_PORT:-3001}:3000"
+    volumes:
+      - marco_prime_data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  marco_prime_data:
+    name: marcoprime_marco_prime_data

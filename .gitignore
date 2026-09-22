@@ -1,0 +1,36 @@
+# Dependencies
+**/node_modules/
+**/dist/
+**/.pnpm-store/
+**/.npm/
+
+# Build outputs
+**/build.log
+**/server.log
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.orange-pi
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data (sensitive/user specific)
+marco-tablet/data/
+*.sqlite
+*.db
+
+# Backup
+*.bak
+*.tmp
+*.temp

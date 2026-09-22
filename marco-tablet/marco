@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+COMPOSE_FILE="${SCRIPT_DIR}/compose.orange-pi.yml"
+WIFI_COMPOSE_FILE="${SCRIPT_DIR}/compose.raspberry-wifi.yml"
+ENV_FILE="${SCRIPT_DIR}/.env.orange-pi"
+
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE=(docker-compose)
+else
+  echo "Erreur : Docker Compose n'est pas installé."
+  exit 1
+fi
+
+validate_environment() {
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "Erreur : ${ENV_FILE} est absent."
+    echo "Crée-le avec : cp .env.orange-pi.example .env.orange-pi"
+    exit 1
+  fi
+
+  if grep -Eq 'REPLACE_HERE|FOUAILLE_SQL_(USER|PASSWORD|HOST|DATABASE)' "${ENV_FILE}"; then
+    echo "Erreur : .env.orange-pi contient encore une valeur à remplacer."
+    exit 1
+  fi
+
+  for variable in DATABASE_URL API_PORT MARCO_HOST_PORT NODE_ENV FRONTEND_URL; do
+    if ! grep -Eq "^${variable}=.+" "${ENV_FILE}"; then
+      echo "Erreur : ${variable} est absent ou vide dans .env.orange-pi."
+      exit 1
+    fi
+  done
+
+  if ! grep -Eq '^DATABASE_URL=mysql://[^[:space:]]+$' "${ENV_FILE}"; then
+    echo "Erreur : DATABASE_URL doit être une URL MySQL complète."
+    exit 1
+  fi
+
+  if ! grep -Eq '^API_PORT=3000$' "${ENV_FILE}"; then
+    echo "Erreur : API_PORT doit rester à 3000 (port interne Docker)."
+    echo "Pour changer http://127.0.0.1:3001, modifie uniquement MARCO_HOST_PORT."
+    exit 1
+  fi
+
+  if ! grep -Eq '^MARCO_HOST_PORT=[0-9]+$' "${ENV_FILE}"; then
+    echo "Erreur : MARCO_HOST_PORT doit être un numéro de port."
+    exit 1
+  fi
+}
+
+compose() {
+  local compose_files=(-f "${COMPOSE_FILE}")
+  if [[ -S /run/marco-wifi/control.sock ]]; then
+    compose_files+=(-f "${WIFI_COMPOSE_FILE}")
+  fi
+  "${COMPOSE[@]}" \
+    --project-name marco-prime \
+    "${compose_files[@]}" \
+    --env-file "${ENV_FILE}" \
+    "$@"
+}
+
+command_name="${1:-help}"
+
+case "${command_name}" in
+  start)
+    validate_environment
+    compose up -d --build
+    ;;
+  restart|rebuild)
+    validate_environment
+    compose up -d --build --force-recreate
+    ;;
+  stop)
+    validate_environment
+    compose down
+    ;;
+  status)
+    validate_environment
+    compose ps
+    ;;
+  logs)
+    validate_environment
+    compose logs -f --tail=100
+    ;;
+  check)
+    validate_environment
+    compose config --quiet
+    echo "Configuration Marco Prime valide."
+    ;;
+  help|-h|--help)
+    echo "Usage : ./marco {start|restart|rebuild|stop|status|logs|check}"
+    ;;
+  *)
+    echo "Commande inconnue : ${command_name}"
+    echo "Usage : ./marco {start|restart|rebuild|stop|status|logs|check}"
+    exit 1
+    ;;
+esac

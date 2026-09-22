@@ -1,0 +1,42 @@
+FROM node:24-bookworm-slim AS frontend-build
+
+RUN npm install --global pnpm@11.25.0
+WORKDIR /build/frontend
+COPY marco-prime-frontend/package.json marco-prime-frontend/pnpm-lock.yaml marco-prime-frontend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY marco-prime-frontend/ ./
+ENV VITE_API_URL=/api/v1
+RUN pnpm build
+
+FROM node:24-bookworm-slim AS backend-build
+
+RUN npm install --global pnpm@11.25.0
+WORKDIR /build/backend
+COPY marco-prime-backend/package.json marco-prime-backend/pnpm-lock.yaml marco-prime-backend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY marco-prime-backend/ ./
+RUN pnpm build
+
+FROM node:24-bookworm-slim AS runtime
+
+RUN npm install --global pnpm@11.25.0
+WORKDIR /app
+COPY marco-prime-backend/package.json marco-prime-backend/pnpm-lock.yaml marco-prime-backend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod --no-optional
+COPY --from=backend-build /build/backend/dist ./dist
+COPY --from=frontend-build /build/frontend/dist ./public
+
+RUN mkdir -p /app/data \
+  && chown -R node:node /app/data
+
+ENV NODE_ENV=production
+ENV API_PORT=3000
+# Fouaille stores and returns its SQL timestamps in French local time. Keeping
+# Node on the same timezone prevents the browser from adding the UTC offset a
+# second time when dates are serialized as ISO strings.
+ENV TZ=Europe/Paris
+EXPOSE 3000
+
+USER node
+
+CMD ["node", "dist/index.js"]

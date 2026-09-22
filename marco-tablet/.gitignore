@@ -1,0 +1,11 @@
+.env.orange-pi
+**/.env
+**/.env.local
+.DS_Store
+**/node_modules/
+**/dist/
+**/logs/
+.pnpm-store/
+.research/
+**/__pycache__/
+*.pyc

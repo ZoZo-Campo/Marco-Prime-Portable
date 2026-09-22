@@ -1,0 +1,9 @@
+services:
+  marco-prime:
+    environment:
+      WIFI_CONTROL_SOCKET: /run/marco-wifi/control.sock
+    volumes:
+      - type: bind
+        source: /run/marco-wifi/control.sock
+        target: /run/marco-wifi/control.sock
+        read_only: true
