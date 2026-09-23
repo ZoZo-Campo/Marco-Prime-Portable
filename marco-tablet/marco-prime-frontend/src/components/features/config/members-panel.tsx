@@ -1,6 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
 import { Button } from "../../ui/button";
-import { OnScreenKeyboard } from "../../shared/on-screen-keyboard";
 import { Keypad } from "../recharge/keypad";
 import { adminJson } from "./admin-api";
 
@@ -15,7 +14,6 @@ type ManagedMember = {
   promotion: number | null;
   admin: boolean;
 };
-type TextField = "firstName" | "lastName" | "email" | "query";
 
 export function MembersPanel({ adminCardNumber }: { adminCardNumber: number }) {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -30,7 +28,6 @@ export function MembersPanel({ adminCardNumber }: { adminCardNumber: number }) {
   const [newPromotion, setNewPromotion] = useState("");
   const [newBadge, setNewBadge] = useState("");
   const [creating, setCreating] = useState(false);
-  const [keyboard, setKeyboard] = useState<TextField | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -56,15 +53,6 @@ export function MembersPanel({ adminCardNumber }: { adminCardNumber: number }) {
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
   }, [adminCardNumber, query, promotion, revision]);
-
-  const keyboardValue = keyboard === "query" ? query : keyboard === "firstName" ? firstName
-    : keyboard === "lastName" ? lastName : email;
-  const setKeyboardValue = (value: string) => {
-    if (keyboard === "query") setQuery(value);
-    if (keyboard === "firstName") setFirstName(value);
-    if (keyboard === "lastName") setLastName(value);
-    if (keyboard === "email") setEmail(value);
-  };
 
   const saveBadge = async () => {
     if (!selected || !/^\d{1,16}$/.test(badge) || !Number.isSafeInteger(Number(badge)) || Number(badge) <= 0) {
@@ -118,32 +106,28 @@ export function MembersPanel({ adminCardNumber }: { adminCardNumber: number }) {
     {notice && <p role="status" class="mt-3 rounded border border-green-500 p-3 text-green-400">{notice}</p>}
     <div class="mt-5 flex flex-wrap gap-3">
       <input class="min-h-12 flex-1 rounded border bg-background px-3 text-lg" placeholder="Nom ou prénom" value={query}
-        onFocus={() => setKeyboard("query")} onInput={(event) => setQuery(event.currentTarget.value)} />
+        onInput={(event) => setQuery(event.currentTarget.value)} />
       <select class="min-h-12 rounded border bg-background px-3" value={promotion}
         onChange={(event) => setPromotion(event.currentTarget.value)}>
         <option value="">Toutes les promotions</option>
         {promotions.map((row) => <option key={row.promotion} value={row.promotion}>{row.promotion} ({row.total})</option>)}
       </select>
-      <Button onClick={() => { setCreating(!creating); setSelected(null); setKeyboard(null); setError(""); }}> {creating ? "Annuler" : "Créer un membre"} </Button>
+      <Button onClick={() => { setCreating(!creating); setSelected(null); setError(""); }}> {creating ? "Annuler" : "Créer un membre"} </Button>
     </div>
-    {keyboard && !creating && <div class="mt-3 overflow-x-auto rounded border p-2">
-      <OnScreenKeyboard value={keyboardValue} onChange={setKeyboardValue} />
-    </div>}
     {creating ? <div class="mt-5 grid max-w-3xl gap-3 rounded border bg-card p-4 md:grid-cols-2">
       <h2 class="md:col-span-2 text-xl font-semibold">Nouveau membre</h2>
-      <input class="min-h-12 rounded border bg-background px-3" placeholder="Prénom *" value={firstName} onFocus={() => setKeyboard("firstName")} onInput={(event) => setFirstName(event.currentTarget.value)} />
-      <input class="min-h-12 rounded border bg-background px-3" placeholder="Nom *" value={lastName} onFocus={() => setKeyboard("lastName")} onInput={(event) => setLastName(event.currentTarget.value)} />
-      <input class="min-h-12 rounded border bg-background px-3" type="email" placeholder="Adresse e-mail *" value={email} onFocus={() => setKeyboard("email")} onInput={(event) => setEmail(event.currentTarget.value)} />
+      <input class="min-h-12 rounded border bg-background px-3" placeholder="Prénom *" value={firstName} onInput={(event) => setFirstName(event.currentTarget.value)} />
+      <input class="min-h-12 rounded border bg-background px-3" placeholder="Nom *" value={lastName} onInput={(event) => setLastName(event.currentTarget.value)} />
+      <input class="min-h-12 rounded border bg-background px-3" type="email" placeholder="Adresse e-mail *" value={email} onInput={(event) => setEmail(event.currentTarget.value)} />
       <select class="min-h-12 rounded border bg-background px-3" value={newPromotion} onChange={(event) => setNewPromotion(event.currentTarget.value)}>
         <option value="">Promotion non renseignée</option>
         {promotions.map((row) => <option key={row.promotion} value={row.promotion}>{row.promotion}</option>)}
       </select>
       <input class="min-h-12 rounded border bg-background px-3" inputMode="numeric" placeholder="Badge (facultatif)" value={newBadge} onInput={(event) => setNewBadge(event.currentTarget.value.replace(/\D/g, ""))} />
-      {keyboard && <div class="md:col-span-2 overflow-x-auto rounded border p-2"><OnScreenKeyboard value={keyboardValue} onChange={setKeyboardValue} /></div>}
       <Button disabled={busy} onClick={() => void createMember()}>Créer dans Fouaille</Button>
     </div> : <div class="mt-4 grid gap-2">
       {results.map((person) => <button key={person.id} type="button" class="min-h-16 rounded border bg-card p-3 text-left hover:bg-accent"
-        onClick={() => { setSelected(person); setBadge(person.cardNumber?.toString() ?? ""); setKeyboard(null); }}>
+        onClick={() => { setSelected(person); setBadge(person.cardNumber?.toString() ?? ""); }}>
         <strong>{person.firstName} {person.lastName}</strong> · {person.promotion ?? "Sans promotion"} · {person.cardNumber ? `badge ${person.cardNumber}` : "Sans badge"}
       </button>)}
       {!results.length && (query.trim().length >= 2 || promotion) && <p class="text-muted-foreground">Aucun membre trouvé.</p>}

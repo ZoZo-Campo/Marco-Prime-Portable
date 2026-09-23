@@ -10,7 +10,6 @@ import { apiUrl } from "../config/api";
 import {
   AlertCircle,
   CalendarDays,
-  Keyboard,
   RefreshCw,
   Search,
   X,
@@ -18,7 +17,6 @@ import {
 import { Button } from "../components/ui/button";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { PaginationSchema } from "../schemas/product.schema";
-import { OnScreenKeyboard } from "../components/shared/on-screen-keyboard";
 
 export const HISTORY_ROUTE_URL = "/history";
 
@@ -29,7 +27,6 @@ export function HistoryPage() {
   const [searchDraft, setSearchDraft] = useState("");
   const [fromDraft, setFromDraft] = useState("");
   const [toDraft, setToDraft] = useState("");
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [filters, setFilters] = useState({ search: "", from: "", to: "" });
 
   const historyUrl = useMemo(() => {
@@ -99,7 +96,6 @@ export function HistoryPage() {
     setSearchDraft("");
     setFromDraft("");
     setToDraft("");
-    setKeyboardVisible(false);
     setOrders([]);
     setPagination(null);
     setPage(1);
@@ -141,7 +137,7 @@ export function HistoryPage() {
               <input
                 class="min-w-0 flex-1 bg-transparent text-lg outline-none"
                 value={searchDraft}
-                inputMode="none"
+                inputMode="text"
                 autocomplete="off"
                 onInput={(event) => setSearchDraft(event.currentTarget.value)}
               />
@@ -153,12 +149,6 @@ export function HistoryPage() {
             onInput={setFromDraft}
           />
           <DateFilter label="Au" value={toDraft} onInput={setToDraft} />
-          <Button
-            variant="outline"
-            onClick={() => setKeyboardVisible((visible) => !visible)}
-          >
-            <Keyboard /> Clavier
-          </Button>
           <Button onClick={applyFilters}>Rechercher</Button>
           {(filters.search || filters.from || filters.to) && (
             <Button variant="ghost" onClick={clearFilters}>
@@ -166,11 +156,6 @@ export function HistoryPage() {
             </Button>
           )}
         </div>
-        {keyboardVisible && (
-          <div class="mt-3 overflow-x-auto border-t pt-3">
-            <OnScreenKeyboard value={searchDraft} onChange={setSearchDraft} />
-          </div>
-        )}
       </div>
       <HistoryList
         orders={pagination ? orders : null}

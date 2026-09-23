@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import { z } from "zod";
 import { apiHeaders, apiUrl } from "../../../config/api";
 import { Button } from "../../ui/button";
-import { OnScreenKeyboard } from "../../shared/on-screen-keyboard";
 import { adminJson } from "./admin-api";
 
 type ProductType = { id: number; type: string };
-type TextField = "search" | "name" | "title";
 const managedProductSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
@@ -33,7 +31,6 @@ export function FouailleProductsPanel({ adminCardNumber, onChanged }: {
   const [price, setPrice] = useState("");
   const [productTypeId, setProductTypeId] = useState("");
   const [color, setColor] = useState("#64748b");
-  const [keyboard, setKeyboard] = useState<TextField | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -61,13 +58,6 @@ export function FouailleProductsPanel({ adminCardNumber, onChanged }: {
       && (!typeFilter || product.productTypeId === Number(typeFilter));
   }).sort((a, b) => Number(b.available) - Number(a.available) || a.name.localeCompare(b.name, "fr")),
   [products, search, filter, typeFilter]);
-
-  const keyboardValue = keyboard === "search" ? search : keyboard === "name" ? name : title;
-  const setKeyboardValue = (value: string) => {
-    if (keyboard === "search") setSearch(value);
-    if (keyboard === "name") setName(value);
-    if (keyboard === "title") setTitle(value);
-  };
 
   const toggleAvailability = async (product: ManagedProduct) => {
     const next = !product.available;
@@ -99,7 +89,7 @@ export function FouailleProductsPanel({ adminCardNumber, onChanged }: {
         productTypeId: Number(productTypeId), color,
       });
       setNotice("Produit créé dans Fouaille, indisponible par défaut. Activez-le puis sélectionnez-le dans « Vendu ce soir » si nécessaire.");
-      setCreating(false); setName(""); setTitle(""); setPrice(""); setKeyboard(null);
+      setCreating(false); setName(""); setTitle(""); setPrice("");
       setRevision((value) => value + 1);
       onChanged();
     } catch (cause) { setError((cause as Error).message); }
@@ -113,7 +103,7 @@ export function FouailleProductsPanel({ adminCardNumber, onChanged }: {
     {notice && <p role="status" class="mt-3 rounded border border-green-500 p-3 text-green-400">{notice}</p>}
     <div class="mt-5 flex flex-wrap gap-3">
       <input class="min-h-12 flex-1 rounded border bg-background px-3 text-lg" value={search} placeholder="Rechercher une boisson ou un produit"
-        onFocus={() => setKeyboard("search")} onInput={(event) => setSearch(event.currentTarget.value)} />
+        onInput={(event) => setSearch(event.currentTarget.value)} />
       <select class="min-h-12 rounded border bg-background px-3" value={typeFilter} onChange={(event) => setTypeFilter(event.currentTarget.value)}>
         <option value="">Toutes catégories</option>
         {types.map((type) => <option key={type.id} value={type.id}>{type.type}</option>)}
@@ -121,20 +111,18 @@ export function FouailleProductsPanel({ adminCardNumber, onChanged }: {
       <select class="min-h-12 rounded border bg-background px-3" value={filter} onChange={(event) => setFilter(event.currentTarget.value)}>
         <option value="all">Tous</option><option value="available">Disponibles</option><option value="unavailable">Indisponibles</option>
       </select>
-      <Button onClick={() => { setCreating(!creating); setKeyboard(null); }}>{creating ? "Annuler" : "Créer un produit"}</Button>
+      <Button onClick={() => { setCreating(!creating); }}>{creating ? "Annuler" : "Créer un produit"}</Button>
     </div>
-    {keyboard === "search" && !creating && <div class="mt-3 overflow-x-auto rounded border p-2"><OnScreenKeyboard value={keyboardValue} onChange={setKeyboardValue} /></div>}
     {creating ? <div class="mt-5 grid max-w-3xl gap-3 rounded border bg-card p-4 md:grid-cols-2">
       <h2 class="md:col-span-2 text-xl font-semibold">Nouveau produit Fouaille</h2>
-      <input class="min-h-12 rounded border bg-background px-3" value={name} placeholder="Nom affiché *" onFocus={() => setKeyboard("name")} onInput={(event) => setName(event.currentTarget.value)} />
-      <input class="min-h-12 rounded border bg-background px-3" value={title} placeholder="Titre court unique *" onFocus={() => setKeyboard("title")} onInput={(event) => setTitle(event.currentTarget.value)} />
+      <input class="min-h-12 rounded border bg-background px-3" value={name} placeholder="Nom affiché *" onInput={(event) => setName(event.currentTarget.value)} />
+      <input class="min-h-12 rounded border bg-background px-3" value={title} placeholder="Titre court unique *" onInput={(event) => setTitle(event.currentTarget.value)} />
       <select class="min-h-12 rounded border bg-background px-3" value={productTypeId} onChange={(event) => setProductTypeId(event.currentTarget.value)}>
         <option value="">Choisir une catégorie *</option>
         {types.map((type) => <option key={type.id} value={type.id}>{type.type}</option>)}
       </select>
       <input class="min-h-12 rounded border bg-background px-3" inputMode="decimal" value={price} placeholder="Prix en € *" onInput={(event) => setPrice(event.currentTarget.value)} />
       <label class="flex items-center gap-3">Couleur <input type="color" value={color} onInput={(event) => setColor(event.currentTarget.value)} /></label>
-      {keyboard && <div class="md:col-span-2 overflow-x-auto rounded border p-2"><OnScreenKeyboard value={keyboardValue} onChange={setKeyboardValue} /></div>}
       <p class="md:col-span-2 text-sm text-muted-foreground">Créé indisponible par défaut. Le rendre disponible et le vendre ce soir sont deux actions distinctes.</p>
       <Button disabled={busy} onClick={() => void createProduct()}>Créer dans Fouaille</Button>
     </div> : <>

@@ -98,8 +98,7 @@ Le script `marco.sh` configure :
 
 | Fonction | Implémentation |
 |----------|----------------|
-| **Clavier natif Android** | Champ recherche → `inputMode="text"` → clavier système (plus de clavier AZERTY custom géant) |
-| **Pavé numérique** | Intégré dans la modale « Rechercher un membre » pour saisir un n° de carte sans clavier physique |
+| **Clavier natif Android** | Tous les champs texte (recherche membre, historique, config, création membre/produit) → `inputMode="text"` → clavier système (plus de clavier AZERTY custom) |
 | **Retour visuel scan** | Flash vert/rouge (450 ms) + bip WebAudio (OK 988/1319 Hz, erreur 220/165 Hz) + vibration |
 | **Retour visuel article** | Pulse vert sur le bouton produit cliqué + micro-bip |
 | **Membres récents** | 6 derniers scannés (localStorage `marco.recent-members`) → puces cliquables |
@@ -159,8 +158,8 @@ Placez-le dans `tablet-scripts/`, rendez-le exécutable, appelez-le depuis `marc
 | Sujet | Détail |
 |-------|--------|
 | **Pas de root / `su`** | Android 9 Lenovo : `su` indisponible via `adb shell` → scripts utilisent `run-as com.termux` pour opérations fichiers |
-| **`100dvh` WebView bug** | Layout racine utilise `h-screen` (100vh stable) au lieu de `100dvh` (864 px > 800 px viewport) |
-| **Clavier virtuel** | Après ouverture/fermeture, `dvh` peut décaler le bandeau bas → recharger la page (`location.reload()`) remet propre |
+| **`100dvh` WebView bug** | Layout racine utilise `h-screen` (100vh stable) au lieu de `100dvh` (864 px > 800 px viewport) — corrige le bandeau bas qui sort de l'écran |
+| **Clavier système** | Plus de clavier AZERTY custom : `OnScreenKeyboard` supprimé de toutes les saisies (membre, historique, config) |
 | **Un seul onglet CDP** | Chrome DevTools flaky avec plusieurs onglets → garder 1 onglet `/buy` |
 | **Base SQLite** | Fichier unique — pas de réplication. Sauvegardez `data/` avant toute manip risquée. |
 | **Heure système** | Pas de NTP auto → vérifier `date` au boot si horodatage critique |
@@ -194,8 +193,8 @@ Licence : voir `LICENSE` du repo original (`Marco-Prime`)
 | Symptôme | Action |
 |----------|--------|
 | Serveur ne répond pas | `pgrep -f "node dist/index.js"` → absent → `./marco-prime-backend/dist/index.js &` |
-| Bandeau bas disparu | Recharger la page (`location.reload()` via CDP ou rouvrir l'app) |
-| Clavier natif ne s'ouvre pas | Vérifier `inputMode` non forcé à `none` dans `member-search.tsx` |
+| Bandeau bas disparu | Layout `h-screen` déployé → recharger la page (`location.reload()` via CDP ou rouvrir l'app) |
+| Clavier natif ne s'ouvre pas | Vérifier `inputMode` non forcé à `none` dans les champs de recherche |
 | Scan RFID ignoré | Lecteur en mode clavier ? `lsusb` → `dmesg` → test `cat /dev/hidrawX` |
 | PWA ne s'installe pas | `sw.js` accessible ? `curl http://localhost:3001/sw.js` → 200 + `navigator.serviceWorker.register()` |
 | Build frontend échoue | `cd marco-prime-frontend && pnpm run build` → lire `build.log` |

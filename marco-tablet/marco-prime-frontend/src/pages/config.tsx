@@ -32,7 +32,6 @@ import { AccountingPanel } from "../components/features/config/accounting-panel"
 import { MembersPanel } from "../components/features/config/members-panel";
 import { FouailleProductsPanel } from "../components/features/config/fouaille-products-panel";
 import { Keypad } from "../components/features/recharge/keypad";
-import { OnScreenKeyboard } from "../components/shared/on-screen-keyboard";
 
 export const CONFIG_ROUTE_URL = "/config";
 
@@ -74,7 +73,6 @@ function ConfigContent() {
   });
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [catalogKeyboard, setCatalogKeyboard] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [editingPrice, setEditingPrice] = useState<CatalogSelectionProduct | null>(null);
@@ -514,13 +512,7 @@ function ConfigContent() {
           <Search class="size-5 text-muted-foreground" />
           <input class="min-h-12 min-w-0 flex-1 bg-transparent text-lg outline-none" value={catalogQuery}
             placeholder="Chercher un produit à vendre ce soir" onInput={(event) => setCatalogQuery(event.currentTarget.value)} />
-          <Button variant="ghost" size="sm" onClick={() => setCatalogKeyboard(!catalogKeyboard)}>
-            {catalogKeyboard ? "Masquer clavier" : "Clavier tactile"}
-          </Button>
         </div>
-        {catalogKeyboard && <div class="mb-5 overflow-x-auto rounded border bg-background p-2">
-          <OnScreenKeyboard value={catalogQuery} onChange={setCatalogQuery} />
-        </div>}
         {catalogLoading && (
           <div class="flex h-full items-center justify-center">
             <Loader2 class="size-12 animate-spin text-primary" />
