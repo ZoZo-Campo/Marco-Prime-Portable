@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marco Prime — Relance serveur</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; background: #121212; color: #eee; }
+  body { display: flex; align-items: center; justify-content: center; padding: 16px; }
+  main { width: 100%; max-width: 460px; text-align: center; }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  p { margin: 8px 0; color: #bbb; font-size: 16px; }
+  #status { margin: 16px 0; font-size: 18px; font-weight: 600; min-height: 24px; }
+  #status.ok { color: #4ade80; }
+  #status.ko { color: #f87171; }
+  .steps { text-align: left; background: #1c1c1c; border: 1px solid #333; border-radius: 12px; padding: 16px 18px; }
+  .steps li { margin: 8px 0; line-height: 1.5; }
+  code { background: #2a2a2a; padding: 2px 6px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Marco Prime</h1>
+  <p>Vérifier le serveur de la caisse, et relancer sans l'agent.</p>
+  <div id="status">Vérification…</div>
+  <ol class="steps">
+    <li><strong>Serveur arrêté ?</strong> Appuyez longtemps sur l'icône <strong>Termux</strong>, puis choisissez <strong>Relance Marco</strong>.</li>
+    <li>L'exécution signale <code>OK : serveur Marco actif</code>.</li>
+    <li>Revenez dans l'appli Marco : elle se reconnecte toute seule.</li>
+    <li>Après un redémarrage de la tablette, tout se relance automatiquement.</li>
+  </ol>
+</main>
+<script>
+  const statusEl = document.getElementById("status");
+  const STATUS_URL = "http://127.0.0.1:3001/api/v1/system/status";
+
+  async function check() {
+    statusEl.textContent = "Vérification…";
+    statusEl.className = "";
+    try {
+      await fetch(STATUS_URL, { mode: "no-cors", cache: "no-store" });
+      statusEl.textContent = "✓ Serveur actif";
+      statusEl.className = "ok";
+    } catch {
+      statusEl.textContent = "✗ Serveur arrêté";
+      statusEl.className = "ko";
+    }
+  }
+
+  check();
+  setInterval(check, 10000);
+</script>
+</body>
+</html>

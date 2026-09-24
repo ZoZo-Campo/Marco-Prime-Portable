@@ -1,5 +1,16 @@
 const FALLBACK_COLOR = "#64748b";
 
+const TYPE_PALETTE = [
+  "#2563eb",
+  "#16a34a",
+  "#ea580c",
+  "#dc2626",
+  "#7c3aed",
+  "#0d9488",
+  "#ca8a04",
+  "#db2777",
+];
+
 function normalizeHex(value: string): string {
   const color = value.trim().toLowerCase();
   const short = /^#([0-9a-f]{3})$/.exec(color);
@@ -23,22 +34,28 @@ function mixWithWhite(color: string, amount: number): string {
 }
 
 /** Keep Fouaille's exact swatch while making dark borders visible on Marco. */
-export function productColors(value: string): {
+export function productColors(
+  value: string,
+  productTypeId?: number,
+): {
   swatch: string;
   border: string;
   surface: string;
 } {
-  const swatch = normalizeHex(value);
+  let swatch = normalizeHex(value);
+  if (swatch === FALLBACK_COLOR && productTypeId !== undefined) {
+    swatch = TYPE_PALETTE[(productTypeId - 1) % TYPE_PALETTE.length];
+  }
   const brightness =
     (channel(swatch, 1) * 299 +
       channel(swatch, 3) * 587 +
       channel(swatch, 5) * 114) /
     1000;
-  const border = brightness < 105 ? mixWithWhite(swatch, 0.48) : swatch;
+  const border = brightness < 130 ? mixWithWhite(swatch, 0.3) : swatch;
 
   return {
     swatch,
     border,
-    surface: `${swatch}20`,
+    surface: `${swatch}30`,
   };
 }

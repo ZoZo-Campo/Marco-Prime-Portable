@@ -19,6 +19,41 @@ type LayoutProps = PropsWithChildren;
 export function Layout({ children }: LayoutProps) {
   const { route } = useLocation();
 
+  // Garde anti-clavier : quand le clavier se rétracte, Chrome peut laisser le
+  // viewport décalé vers le bas (liseré en haut + clavier qui rejaillit au
+  // prochain tap). On recentre le scroll dès que le clavier disparaît.
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+    let fullHeight = Math.max(window.innerHeight, visualViewport.height);
+    let keyboardVisible = false;
+
+    const onResize = () => {
+      const currentInner = window.innerHeight;
+      if (currentInner > fullHeight) fullHeight = currentInner;
+      const hasKeyboard = fullHeight - visualViewport.height > 120;
+      if (hasKeyboard) {
+        keyboardVisible = true;
+      } else if (keyboardVisible) {
+        keyboardVisible = false;
+        visualViewport.offsetTop > 0 && window.scrollTo(0, 0);
+      }
+    };
+
+    const onScroll = () => {
+      if (!keyboardVisible && visualViewport.offsetTop > 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    visualViewport.addEventListener("resize", onResize);
+    visualViewport.addEventListener("scroll", onScroll);
+    return () => {
+      visualViewport.removeEventListener("resize", onResize);
+      visualViewport.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
   useEffect(() => {
     let timeout = window.setTimeout(resetSession, 120_000);
 
@@ -52,7 +87,9 @@ export function Layout({ children }: LayoutProps) {
   }, []);
 
   return (
-    <div class="w-screen h-screen flex flex-col overflow-hidden">
+    <div
+      class="app-shell w-screen flex flex-col overflow-hidden"
+    >
       <main class="flex-1 flex overflow-auto">{children}</main>
       <NavBar />
     </div>

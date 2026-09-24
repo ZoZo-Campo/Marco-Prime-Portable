@@ -7,6 +7,7 @@ const rowSchema = z.object({
   productId: z.number().int().positive().nullable().default(null),
   label: z.string(),
   liters: z.string(),
+  units: z.string().default("0"),
   purchasePricePerLiter: z.string(),
   revenue: z.string(),
 });
@@ -92,6 +93,7 @@ class AccountingService {
         ...row,
         label: row.label.trim(),
         liters: normalize(row.liters, 3),
+        units: normalize(row.units ?? "0", 2),
         purchasePricePerLiter: normalize(row.purchasePricePerLiter, 4),
         revenue: normalize(row.revenue, 2),
       })),
@@ -132,21 +134,26 @@ async function atomicWrite(targetPath: string, value: unknown) {
 
 export function accountingView(value: Awaited<ReturnType<AccountingService["get"]>>) {
   const rows = value.rows.map((row) => {
-    const cost = Number(row.liters) * Number(row.purchasePricePerLiter);
+    const liters = Number(row.liters);
+    const units = Number(row.units ?? "0");
+    const unitPrice = Number(row.purchasePricePerLiter);
+    const cost = liters * unitPrice + units * unitPrice;
     const result = Number(row.revenue) - cost;
-    return { ...row, cost: cost.toFixed(2), result: result.toFixed(2) };
+    return { ...row, liters: row.liters, units: row.units ?? "0", cost: cost.toFixed(2), result: result.toFixed(2) };
   });
   const totals = rows.reduce((sum, row) => ({
     liters: sum.liters + Number(row.liters),
+    units: sum.units + Number(row.units ?? "0"),
     cost: sum.cost + Number(row.cost),
     revenue: sum.revenue + Number(row.revenue),
     result: sum.result + Number(row.result),
-  }), { liters: 0, cost: 0, revenue: 0, result: 0 });
+  }), { liters: 0, units: 0, cost: 0, revenue: 0, result: 0 });
   return {
     ...value,
     rows,
     totals: {
       liters: totals.liters.toFixed(3).replace(/0+$/, "").replace(/\.$/, ""),
+      units: totals.units.toFixed(2).replace(/0+$/, "").replace(/\.$/, ""),
       cost: totals.cost.toFixed(2),
       revenue: totals.revenue.toFixed(2),
       result: totals.result.toFixed(2),

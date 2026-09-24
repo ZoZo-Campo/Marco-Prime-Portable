@@ -17,6 +17,8 @@ export function MemberSearch() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<MemberSchema[]>([]);
+  const [modalHeight, setModalHeight] = useState(() => window.innerHeight - 24);
+  const [overlayTop, setOverlayTop] = useState(0);
 
   const show = () => {
     pause();
@@ -32,6 +34,35 @@ export function MemberSearch() {
     setOpen(false);
     resume();
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const viewport = window.visualViewport;
+      const viewportHeight = viewport
+        ? Math.round(viewport.height)
+        : Math.round(window.innerHeight);
+      const offsetTop = viewport ? Math.round(viewport.offsetTop) : 0;
+      setModalHeight((current) => {
+        const next = Math.max(320, viewportHeight - 24);
+        return Math.abs(current - next) > 1 ? next : current;
+      });
+      setOverlayTop(offsetTop);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("focusout", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("scroll", measure);
+    const timer = window.setInterval(measure, 400);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("focusout", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("scroll", measure);
+      window.clearInterval(timer);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +106,7 @@ export function MemberSearch() {
           setError("Impossible de rechercher les membres.");
         })
         .finally(() => setSearching(false));
-    }, 300);
+    }, 150);
 
     return () => {
       window.clearTimeout(timer);
@@ -95,8 +126,11 @@ export function MemberSearch() {
         <UserRoundSearch /> Rechercher un membre
       </Button>
       {open && (
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3">
-          <Card class="flex h-[calc(100dvh-1.5rem)] max-h-[52rem] w-full max-w-4xl flex-col overflow-hidden px-5 py-3 shadow-2xl">
+        <div
+          class="fixed z-50 flex flex-col items-center bg-black/75 p-3"
+          style={{ top: overlayTop, left: 0, right: 0, height: modalHeight + 24 }}
+        >
+          <Card class="flex w-full max-w-4xl flex-col overflow-hidden px-5 py-3 shadow-2xl" style={{ maxHeight: Math.max(320, modalHeight) }}>
             <div class="flex shrink-0 items-center justify-between gap-4">
               <div>
                 <h2 class="text-2xl font-bold">Rechercher un membre</h2>

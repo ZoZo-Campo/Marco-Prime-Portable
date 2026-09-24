@@ -42,11 +42,15 @@ type EditableRow = Pick<
   | "productId"
   | "label"
   | "liters"
+  | "units"
   | "purchasePricePerLiter"
   | "revenue"
 >;
 type AccountingStatus = "draft" | "closed";
 type DialogName = "new-event" | "close-event" | null;
+
+// Type Fouaille des bouteilles : comptées en unités dans la compta, pas en litres.
+const BOTTLE_TYPE_ID = 9;
 
 interface AccountingDraft {
   status: AccountingStatus;
@@ -102,6 +106,10 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   );
   const archivedProducts = useMemo(
     () => products.filter((product) => !product.available).sort(compareProducts),
+    [products],
+  );
+  const bottleProductIds = useMemo(
+    () => new Set(products.filter((product) => product.productTypeId === BOTTLE_TYPE_ID).map((product) => product.id)),
     [products],
   );
 
@@ -311,6 +319,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           ...row,
           id: crypto.randomUUID(),
           liters: "0",
+          units: "0",
           purchasePricePerLiter: row.productId === null
             ? row.purchasePricePerLiter
             : (purchasePriceDefaults.get(row.productId) ?? row.purchasePricePerLiter),
@@ -359,7 +368,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const exported = accountingExportSchema.parse(await response.json());
-      const files = createExportFiles(exported);
+      const files = createExportFiles(exported, products);
       const directoryPicker = (window as FilePickerWindow).showDirectoryPicker;
       if (directoryPicker) {
         try {
@@ -375,12 +384,14 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           throw error;
         }
       } else {
-        for (const file of files) downloadBlob(file.name, file.blob);
+        files.forEach((file, index) => {
+          window.setTimeout(() => downloadBlob(file.name, file.blob), index * 400);
+        });
       }
       setLastExportSignature(draftSignature);
       setMessage(directoryPicker
         ? "Export complet enregistré : 4 CSV et une sauvegarde JSON."
-        : "Export téléchargé. Le dossier dépend du réglage de Chromium.");
+        : `Export enregistré dans les fichiers de la tablette : ${files.length} fichiers datés du ${eventDate} dans le dossier Téléchargements.`);
       return true;
     } catch {
       setMessage("Impossible de créer l’export complet de la soirée.");
@@ -427,8 +438,10 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   };
 
   const totals = calculateTotals(rows);
+  const isBottleRow = (row: EditableRow) =>
+    row.productId !== null && bottleProductIds.has(row.productId);
   const pricesReady = rows.length > 0 && rows.every(hasPositivePrice);
-  const litersReady = rows.length > 0 && rows.every(hasPositiveLiters);
+  const quantitiesReady = rows.length > 0 && rows.every(hasPositiveQuantity);
   const exportReady = lastExportSignature === draftSignature;
 
   if (loading) {
@@ -443,7 +456,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           <div class="mr-auto">
             <h1 class="flex items-center gap-3 text-2xl font-bold"><Calculator /> Compta réelle</h1>
             <p class="mt-1 text-muted-foreground">
-              Saisissez les litres réellement écoulés. Les recettes Marco peuvent être préremplies puis corrigées manuellement.
+              Saisissez les quantités réellement écoulées — litres ou unités pour les bouteilles. Les recettes Marco peuvent être préremplies puis corrigées manuellement.
             </p>
             <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
               <span class={`rounded-full px-3 py-1 font-medium ${isClosed ? "bg-green-500/15 text-green-400" : "bg-amber-500/15 text-amber-300"}`}>
@@ -509,8 +522,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
             <table class="w-full min-w-[960px] border-collapse text-left">
               <thead class="bg-muted/50">
                 <tr>
-                  <th class="p-3">Produit Fouaille</th><th class="p-3">Litres réels</th>
-                  <th class="p-3">Prix achat / L</th><th class="p-3">Coût total</th>
+                  <th class="p-3">Produit Fouaille</th><th class="p-3">Quantité réelle</th>
+                  <th class="p-3">Prix d'achat</th><th class="p-3">Coût total</th>
                   <th class="p-3">Recettes réelles</th><th class="p-3">Résultat</th><th />
                 </tr>
               </thead>
@@ -539,8 +552,22 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
                           />
                         </select>
                       </td>
-                      <td class="p-2"><NumberInput value={row.liters} disabled={isClosed} onInput={(value) => updateRow(row.id, "liters", value)} /></td>
-                      <td class="p-2"><NumberInput value={row.purchasePricePerLiter} disabled={isClosed} onInput={(value) => updateRow(row.id, "purchasePricePerLiter", value)} /></td>
+                      <td class="p-2">
+                        <span class="flex items-center gap-2">
+                          <NumberInput
+                            value={isBottleRow(row) ? row.units : row.liters}
+                            disabled={isClosed}
+                            onInput={(value) => updateRow(row.id, isBottleRow(row) ? "units" : "liters", value)}
+                          />
+                          <span class="min-w-14 text-xs text-muted-foreground">{isBottleRow(row) ? "unité" : "litre"}</span>
+                        </span>
+                      </td>
+                      <td class="p-2">
+                        <span class="flex items-center gap-2">
+                          <NumberInput value={row.purchasePricePerLiter} disabled={isClosed} onInput={(value) => updateRow(row.id, "purchasePricePerLiter", value)} />
+                          <span class="min-w-16 text-xs text-muted-foreground">{isBottleRow(row) ? "/ unité" : "/ L"}</span>
+                        </span>
+                      </td>
                       <td class="p-3 font-medium">{formatMoney(values.cost)}</td>
                       <td class="p-2"><NumberInput value={row.revenue} disabled={isClosed} onInput={(value) => updateRow(row.id, "revenue", value)} /></td>
                       <td class={`p-3 font-bold ${values.result < 0 ? "text-destructive" : "text-green-400"}`}>
@@ -561,7 +588,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
               </tbody>
               <tfoot class="border-t-2 bg-muted/40 font-bold">
                 <tr>
-                  <td class="p-3">TOTAL</td><td class="p-3">{formatLiters(totals.liters)}</td><td />
+                  <td class="p-3">TOTAL</td>
+                  <td class="p-3">{formatLiters(totals.liters)}{Number(totals.units) > 0 && <> · {formatUnits(totals.units)}</>}</td><td />
                   <td class="p-3">{formatMoney(totals.cost)}</td><td class="p-3">{formatMoney(totals.revenue)}</td>
                   <td class="p-3">{formatMoney(totals.result)}</td><td />
                 </tr>
@@ -605,7 +633,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         <Modal title="Créer une nouvelle soirée" onClose={() => setDialog(null)}>
           <p class="text-muted-foreground">
             La soirée actuelle est remplacée dans le brouillon local. Exportez-la d’abord si vous devez conserver son bilan.
-            Les prix d’achat au litre mémorisés ne sont jamais supprimés.
+            Les prix d'achat mémorisés (par litre ou par unité) ne sont jamais supprimés.
           </p>
           <div class="mt-5 grid gap-3 sm:grid-cols-2">
             <Button variant="outline" disabled={saving} onClick={() => void startNewEvent(true)}>Garder les produits habituels</Button>
@@ -617,8 +645,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       {dialog === "close-event" && (
         <Modal title="Clôture guidée de la soirée" onClose={() => setDialog(null)}>
           <div class="space-y-3">
-            <ChecklistLine ready={pricesReady} label="Prix d’achat vérifiés" detail="Chaque produit doit avoir un prix d’achat par litre supérieur à zéro." />
-            <ChecklistLine ready={litersReady} label="Litres réels saisis" detail="Chaque ligne conservée doit contenir une quantité réellement mesurée." />
+            <ChecklistLine ready={pricesReady} label="Prix d’achat vérifiés" detail="Chaque produit doit avoir un prix d’achat (par litre, ou par unité pour les bouteilles) supérieur à zéro." />
+            <ChecklistLine ready={quantitiesReady} label="Quantités réelles saisies" detail="Chaque ligne conservée doit contenir une quantité mesurée (litres, ou unités pour les bouteilles)." />
             <ChecklistLine ready={lastPrefillAt !== null} optional label="Ventes Marco vérifiées" detail="Préremplissez les recettes ou vérifiez-les manuellement." />
             <ChecklistLine ready={exportReady} label="Export et sauvegarde créés" detail="Les 4 CSV et la sauvegarde JSON doivent correspondre à la dernière saisie." />
           </div>
@@ -674,7 +702,7 @@ function SaveState({ saving, hasUnsavedChanges, updatedAt }: { saving: boolean; 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ComponentChildren }) {
   return (
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <Card class="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto p-6 pb-8 shadow-2xl">
+      <Card class="max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto p-6 pb-8 shadow-2xl">
         <div class="mb-4 flex items-start justify-between gap-3">
           <h2 class="text-2xl font-bold">{title}</h2>
           <Button size="icon" variant="ghost" aria-label="Fermer" onClick={onClose}><X /></Button>
@@ -705,16 +733,16 @@ function NumberInput({ value, disabled, onInput }: { value: string; disabled: bo
 
 function newRow(product: ProductCost, defaults: Map<number, string>): EditableRow {
   return {
-    id: crypto.randomUUID(), productId: product.id, label: product.name, liters: "0",
+    id: crypto.randomUUID(), productId: product.id, label: product.name, liters: "0", units: "0",
     purchasePricePerLiter: defaults.get(product.id) ?? "0", revenue: "0",
   };
 }
 
 function toEditableRows(value: Accounting, catalogue: ProductCost[]) {
-  return value.rows.map(({ id, productId, label, liters, purchasePricePerLiter, revenue }) => ({
+  return value.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({
     id,
     productId: productId ?? catalogue.find((product) => normalizeSearch(product.name) === normalizeSearch(label))?.id ?? null,
-    label, liters, purchasePricePerLiter, revenue,
+    label, liters, units: units ?? "0", purchasePricePerLiter, revenue,
   }));
 }
 
@@ -725,7 +753,7 @@ function defaultsMap(accounting: Accounting) {
 function signature(draft: AccountingDraft) {
   return JSON.stringify({
     status: draft.status, eventName: draft.eventName, eventDate: draft.eventDate,
-    rows: draft.rows.map(({ id, productId, label, liters, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, purchasePricePerLiter, revenue })),
+    rows: draft.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, units, purchasePricePerLiter, revenue })),
   });
 }
 
@@ -735,6 +763,7 @@ function normalizeRows(rows: EditableRow[]) {
     productId: row.productId as number,
     label: row.label.trim(),
     liters: normalizeNumber(row.liters) as string,
+    units: normalizeNumber(row.units) as string,
     purchasePricePerLiter: normalizeNumber(row.purchasePricePerLiter) as string,
     revenue: normalizeNumber(row.revenue) as string,
   }));
@@ -746,6 +775,7 @@ function isValidDraft(draft: AccountingDraft) {
     && /^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate)
     && draft.rows.every((row) => row.productId !== null && row.label.trim() !== ""
       && normalizeNumber(row.liters) !== null
+      && normalizeNumber(row.units) !== null
       && normalizeNumber(row.purchasePricePerLiter) !== null
       && normalizeNumber(row.revenue) !== null)
     && new Set(productIds).size === draft.rows.length;
@@ -756,28 +786,40 @@ function normalizeNumber(value: string) {
   return /^\d+(?:\.\d+)?$/.test(normalized) && Number.isFinite(Number(normalized)) ? normalized : null;
 }
 
+/** Quantité comptabilisée : unités si la bouteille en a, sinon litres. */
+function quantityOf(row: EditableRow) {
+  const units = Number(normalizeNumber(row.units) ?? 0);
+  return units > 0 ? units : Number(normalizeNumber(row.liters) ?? 0);
+}
+
 function calculateRow(row: EditableRow) {
-  const liters = Number(normalizeNumber(row.liters) ?? 0);
-  const cost = liters * Number(normalizeNumber(row.purchasePricePerLiter) ?? 0);
+  const quantity = quantityOf(row);
+  const cost = quantity * Number(normalizeNumber(row.purchasePricePerLiter) ?? 0);
   const revenue = Number(normalizeNumber(row.revenue) ?? 0);
-  return { liters, cost, revenue, result: revenue - cost };
+  return {
+    liters: Number(normalizeNumber(row.liters) ?? 0),
+    units: Number(normalizeNumber(row.units) ?? 0),
+    cost,
+    revenue,
+    result: revenue - cost,
+  };
 }
 
 function calculateTotals(rows: EditableRow[]) {
   return rows.reduce((sum, row) => {
     const value = calculateRow(row);
-    return { liters: sum.liters + value.liters, cost: sum.cost + value.cost, revenue: sum.revenue + value.revenue, result: sum.result + value.result };
-  }, { liters: 0, cost: 0, revenue: 0, result: 0 });
+    return { liters: sum.liters + value.liters, units: sum.units + value.units, cost: sum.cost + value.cost, revenue: sum.revenue + value.revenue, result: sum.result + value.result };
+  }, { liters: 0, units: 0, cost: 0, revenue: 0, result: 0 });
 }
 
 function hasPositivePrice(row: EditableRow) {
   return Number(normalizeNumber(row.purchasePricePerLiter) ?? 0) > 0;
 }
-function hasPositiveLiters(row: EditableRow) {
-  return Number(normalizeNumber(row.liters) ?? 0) > 0;
+function hasPositiveQuantity(row: EditableRow) {
+  return quantityOf(row) > 0;
 }
 function canClose(rows: EditableRow[]) {
-  return rows.length > 0 && rows.every(hasPositivePrice) && rows.every(hasPositiveLiters);
+  return rows.length > 0 && rows.every(hasPositivePrice) && rows.every(hasPositiveQuantity);
 }
 
 function eventRange(eventDate: string) {
@@ -802,9 +844,17 @@ function compareProducts(left: ProductCost, right: ProductCost) {
   return left.name.localeCompare(right.name, "fr", { sensitivity: "base" });
 }
 
-function createExportFiles(exported: AccountingExport) {
-  const accountingRows = exported.accounting.rows.map(({ id, productId, label, liters, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, purchasePricePerLiter, revenue }));
-  const accountingCsv = createAccountingCsv(exported.accounting.eventName, exported.accounting.eventDate, accountingRows, calculateTotals(accountingRows));
+function createExportFiles(exported: AccountingExport, products: ProductCost[]) {
+  const bottleProductIds = new Set(products.filter((product) => product.productTypeId === BOTTLE_TYPE_ID).map((product) => product.id));
+  const stamp = `-${exported.accounting.eventDate}`;
+  const accountingRows = exported.accounting.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, units: units ?? "0", purchasePricePerLiter, revenue }));
+  const accountingCsv = createAccountingCsv(
+    exported.accounting.eventName,
+    exported.accounting.eventDate,
+    accountingRows,
+    calculateTotals(accountingRows),
+    bottleProductIds,
+  );
   const salesCsv = tableCsv(
     ["Transaction", "Date", "Membre", "Produit", "Catégorie", "Quantité", "Montant débité", "Statut"],
     exported.sales.map((sale) => [sale.orderId, formatCsvDate(sale.date), memberName(sale), sale.productName, sale.category, sale.amount, csvNumber(Math.abs(Number(sale.price)), 2), sale.status === "replacement" ? "Vente de remplacement" : "Vente"]),
@@ -825,23 +875,39 @@ function createExportFiles(exported: AccountingExport) {
     ]),
   );
   return [
-    csvFile("compta.csv", accountingCsv),
-    csvFile("ventes.csv", salesCsv),
-    csvFile("rechargements.csv", rechargesCsv),
-    csvFile("corrections.csv", correctionsCsv),
-    { name: "sauvegarde-marco.json", blob: new Blob([JSON.stringify(exported, null, 2), "\n"], { type: "application/json;charset=utf-8" }) },
+    csvFile(`compta${stamp}.csv`, accountingCsv),
+    csvFile(`ventes${stamp}.csv`, salesCsv),
+    csvFile(`rechargements${stamp}.csv`, rechargesCsv),
+    csvFile(`corrections${stamp}.csv`, correctionsCsv),
+    { name: `sauvegarde-marco${stamp}.json`, blob: new Blob([JSON.stringify(exported, null, 2), "\n"], { type: "application/json;charset=utf-8" }) },
   ];
 }
 
-function createAccountingCsv(eventName: string, eventDate: string, rows: EditableRow[], totals: ReturnType<typeof calculateTotals>) {
+function createAccountingCsv(
+  eventName: string,
+  eventDate: string,
+  rows: EditableRow[],
+  totals: ReturnType<typeof calculateTotals>,
+  bottleProductIds: Set<number>,
+) {
   const lines: Array<Array<string | number>> = [
     ["Événement", eventName], ["Date", eventDate], [],
-    ["Produit", "Litres réels", "Prix achat par litre", "Coût total", "Recettes réelles", "Résultat"],
+    ["Produit", "Quantité", "Unité", "Prix d’achat", "Coût total", "Recettes réelles", "Résultat"],
     ...rows.map((row) => {
       const value = calculateRow(row);
-      return [row.label, csvNumber(value.liters, 3), csvNumber(Number(row.purchasePricePerLiter.replace(",", ".")), 4), csvNumber(value.cost, 2), csvNumber(value.revenue, 2), csvNumber(value.result, 2)];
+      const bottle = row.productId !== null && bottleProductIds.has(row.productId);
+      const quantity = bottle ? value.units : value.liters;
+      return [
+        row.label,
+        csvNumber(quantity, bottle ? 2 : 3),
+        bottle ? "unité" : "litre",
+        csvNumber(Number(row.purchasePricePerLiter.replace(",", ".")), 4),
+        csvNumber(value.cost, 2),
+        csvNumber(value.revenue, 2),
+        csvNumber(value.result, 2),
+      ];
     }),
-    ["TOTAL", csvNumber(totals.liters, 3), "", csvNumber(totals.cost, 2), csvNumber(totals.revenue, 2), csvNumber(totals.result, 2)],
+    ["TOTAL", `${formatLiters(totals.liters)} + ${formatUnits(totals.units)}`, "", csvNumber(totals.cost, 2), csvNumber(totals.revenue, 2), csvNumber(totals.result, 2)],
   ];
   return lines.map((line) => line.map((cell) => csvCell(String(cell))).join(";")).join("\r\n");
 }
@@ -882,4 +948,7 @@ function formatMoney(value: number) {
 }
 function formatLiters(value: number) {
   return `${value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")} L`;
+}
+function formatUnits(value: number) {
+  return `${value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} unité${value > 1 ? "s" : ""}`;
 }

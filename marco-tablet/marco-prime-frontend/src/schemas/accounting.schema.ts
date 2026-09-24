@@ -8,6 +8,7 @@ export const accountingRowSchema = z.object({
   productId: z.number().int().positive().nullable(),
   label: z.string(),
   liters: decimalStringSchema,
+  units: decimalStringSchema.optional().default("0"),
   purchasePricePerLiter: decimalStringSchema,
   revenue: decimalStringSchema,
   cost: moneyStringSchema,
@@ -30,6 +31,7 @@ export const accountingSchema = z.object({
   updatedAt: z.string().datetime(),
   totals: z.object({
     liters: decimalStringSchema,
+    units: decimalStringSchema.optional().default("0"),
     cost: moneyStringSchema,
     revenue: moneyStringSchema,
     result: moneyStringSchema,

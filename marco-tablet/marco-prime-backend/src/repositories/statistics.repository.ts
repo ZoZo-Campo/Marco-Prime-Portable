@@ -57,6 +57,7 @@ export class StatisticsRepository {
       .select({
         id: products.id,
         name: products.name,
+        productTypeId: products.productTypeId,
         category: productTypes.type,
         sellingPrice: products.price,
         available: products.available,

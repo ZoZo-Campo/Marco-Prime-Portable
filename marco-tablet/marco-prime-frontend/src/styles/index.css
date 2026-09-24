@@ -16,6 +16,13 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Coque de l'application : hauteur pleine, jamais décalée par le clavier
+     Android (100dvh suit la fenêtre dynamique ; 100vh sert de repli). */
+  .app-shell {
+    height: 100vh;
+    height: 100dvh;
+  }
+
   /* The physical Raspberry kiosk display is smaller than a desktop monitor.
      Scaling the rem base keeps every view readable without special layouts or
      extra JavaScript. */

@@ -18,6 +18,7 @@ export const accountingUpdateSchema = z.object({
     productId: z.number().int().positive().safe(),
     label: z.string().trim().min(1).max(100),
     liters: decimal(3).refine((value) => Number(value) <= 100_000),
+    units: decimal(2).optional().default("0").refine((value) => Number(value) <= 100_000),
     purchasePricePerLiter: decimal(4).refine((value) => Number(value) <= 100_000),
     revenue: decimal(2).refine((value) => Number(value) <= 9_999_999.99),
   })).max(200).refine(

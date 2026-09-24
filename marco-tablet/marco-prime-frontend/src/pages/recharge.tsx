@@ -12,6 +12,7 @@ import { TICKET_ROUTE_URL } from "./ticket";
 import { apiHeaders, apiUrl } from "../config/api";
 import { MemberSearch } from "../components/features/member/member-search";
 import { BirthdayBadge } from "../components/features/member/birthday-badge";
+import { CardCodeEntry } from "../components/features/buy/card-code-entry";
 import {
   pendingRechargeSignal,
   rechargeAmountSignal,
@@ -300,6 +301,18 @@ function RechargeContent() {
               </p>
             </div>
             <div class="px-6">
+              <p class="mb-3 text-sm text-muted-foreground">
+                Ou saisissez le code de la carte admin sur le pavé :
+              </p>
+              <CardCodeEntry
+                title="Code admin"
+                onSubmit={(adminCode) => {
+                  processRecharge(Number(adminCode));
+                  return false;
+                }}
+              />
+            </div>
+            <div class="px-6 mt-3">
               <Button variant="outline" class="w-full" onClick={handleCancel}>
                 Annuler
               </Button>

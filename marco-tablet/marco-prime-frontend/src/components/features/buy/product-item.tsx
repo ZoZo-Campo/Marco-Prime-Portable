@@ -14,7 +14,7 @@ interface ProductItemProps {
 
 export function ProductItem({ product, amount, onClick }: ProductItemProps) {
   const { data } = useMember();
-  const color = productColors(product.color);
+  const color = productColors(product.color, product.productTypeId);
   const selected = amount > 0;
   const flashRef = useRef<HTMLButtonElement>(null);
 
@@ -38,7 +38,7 @@ export function ProductItem({ product, amount, onClick }: ProductItemProps) {
         backgroundColor: color.surface,
       }}
       class={cn(
-        "relative border-[3px] justify-center items-center disabled:cursor-default cursor-pointer flex flex-col gap-2 px-3 pb-3 pt-10 hover:brightness-110 active:scale-[0.98] select-none text-card-foreground transition-all duration-150 disabled:opacity-50",
+        "relative border-[5px] justify-center items-center disabled:cursor-default cursor-pointer flex flex-col gap-2 px-3 pb-3 pt-10 hover:brightness-110 active:scale-[0.98] select-none text-card-foreground transition-all duration-150 disabled:opacity-50",
         selected && "ring-2 ring-primary ring-offset-2 shadow-lg",
       )}
       onClick={handleClick}
@@ -46,7 +46,7 @@ export function ProductItem({ product, amount, onClick }: ProductItemProps) {
       aria-label={`${product.name}, ${product.price} euros${selected ? `, quantité ${amount}` : ""}`}
     >
       <span
-        class="absolute left-3 top-3 size-5 rounded-full border-2 border-white/80 shadow-sm"
+        class="absolute left-3 top-3 size-6 rounded-full border-2 border-white shadow-sm"
         style={{ backgroundColor: color.swatch }}
         aria-hidden="true"
       />
