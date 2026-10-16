@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marco Prime — Relance serveur</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; background: #121212; color: #eee; }
+  body { display: flex; align-items: center; justify-content: center; padding: 16px; }
+  main { width: 100%; max-width: 460px; text-align: center; }
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  p { margin: 8px 0; color: #bbb; font-size: 16px; }
+  #status { margin: 16px 0; font-size: 18px; font-weight: 600; min-height: 24px; }
+  #status.ok { color: #4ade80; }
+  #status.ko { color: #f87171; }
+  button {
+    width: 100%; padding: 20px; font-size: 20px; font-weight: 700;
+    border: 0; border-radius: 12px; background: #2563eb; color: #fff; cursor: pointer;
+  }
+  button:active { background: #1d4ed8; }
+  ul { text-align: left; color: #bbb; font-size: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Marco Prime</h1>
+  <p>Vérifier et relancer le serveur de la caisse, sans l'agent.</p>
+  <div id="status">Vérification…</div>
+  <button type="button" id="relaunch">▶ Relancer le serveur</button>
+  <p style="font-size:13px;color:#999;margin-top:12px">
+    Le bouton ouvre Termux qui relance le serveur (et le garde en vie).
+  </p>
+  <ul>
+    <li>Si le bandeau rouge « Base » apparaît dans l'appli, revenez ici.</li>
+    <li>Sinon, fermez puis rouvrez l'appli Marco pour reconnecter.</li>
+  </ul>
+</main>
+<script>
+  const statusEl = document.getElementById("status");
+  const btn = document.getElementById("relaunch");
+  const STATUS_URL = "http://127.0.0.1:3001/api/v1/system/status";
+  const INTENT_URL =
+    "intent://relance/#Intent;action=com.termux.RUN_COMMAND;package=com.termux;" +
+    "S.com.termux.RUN_COMMAND_PATH=/data/data/com.termux/files/home/relance-marco.sh;" +
+    "S.com.termux.RUN_COMMAND_WORKDIR=/data/data/com.termux/files/home;end";
+
+  async function check() {
+    statusEl.textContent = "Vérification…";
+    statusEl.className = "";
+    try {
+      await fetch(STATUS_URL, { mode: "no-cors", cache: "no-store" });
+      statusEl.textContent = "✓ Serveur actif";
+      statusEl.className = "ok";
+    } catch {
+      statusEl.textContent = "✗ Serveur arrêté";
+      statusEl.className = "ko";
+    }
+  }
+
+  btn.addEventListener("click", () => {
+    if (window.confirm("Relancer le serveur Marco via Termux ?")) {
+      window.location.href = INTENT_URL;
+    }
+  });
+
+  check();
+  setInterval(check, 10000);
+</script>
+</body>
+</html>

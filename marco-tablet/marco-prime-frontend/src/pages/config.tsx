@@ -31,6 +31,7 @@ import { StatisticsPanel } from "../components/features/config/statistics-panel"
 import { AccountingPanel } from "../components/features/config/accounting-panel";
 import { MembersPanel } from "../components/features/config/members-panel";
 import { FouailleProductsPanel } from "../components/features/config/fouaille-products-panel";
+import { QrScanButton } from "../components/features/member/qr-scan-button";
 import { Keypad } from "../components/features/recharge/keypad";
 
 export const CONFIG_ROUTE_URL = "/config";
@@ -183,6 +184,16 @@ function ConfigContent() {
               {memberLoading ? <Loader2 class="size-5 animate-spin" /> : <Check class="size-5" />}
               Valider la carte
             </Button>
+            <QrScanButton
+              label="Scanner un QR admin"
+              variant="outline"
+              onSubmit={(cardNumber) => {
+                setManualCardNumber("");
+                submitCardNumber(cardNumber);
+              }}
+              onScanStart={pause}
+              onScanEnd={() => {}}
+            />
             <Button
               type="button"
               variant="ghost"
@@ -398,8 +409,8 @@ function ConfigContent() {
                   Fermer l’écran Marco ?
                 </h2>
                 <p class="mt-2 text-muted-foreground">
-                  Chromium sera fermé et le Bureau réapparaîtra. Docker et
-                  l’API continueront de fonctionner.
+                  Le navigateur sera fermé et le Bureau réapparaîtra. Le serveur
+                  Marco continuera de fonctionner.
                 </p>
               </div>
               <Button

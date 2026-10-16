@@ -68,11 +68,11 @@ describe("Member Endpoint", async () => {
     expect(results.some((result) => result.cardNumber === memberNumber)).toBe(true);
   });
 
-  it("rejects member search by a non-administrator", async () => {
+  it("allows kiosk member search without an administrator card", async () => {
     const response = await client.api.v1.members.search.$post(
-      { json: { adminCardNumber: memberNumber, query: "test" } },
+      { json: { query: "test" } },
       authenticatedOptions,
     );
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
   });
 });

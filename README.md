@@ -1,204 +1,123 @@
-# Marco Prime Portable — Version Tablette Locale
+# Marco Prime — Caisse tablette (portable)
 
-**Version portable** de Marco Prime (caisse tactile RFID) adaptée pour tourner **100 % en local** sur une tablette Lenovo TB-X605F (Android 9) sans Raspberry Pi, sans Docker, sans internet.
+Version **portable** de Marco Prime (caisse tactile RFID) qui tourne **en local sur une
+tablette Android** sous Termux, **sans Raspberry Pi et sans Docker**. Le navigateur affiche
+l'appli en plein écran (PWA) et un serveur Node sert l'API + le frontend sur la tablette.
+
+Tablette de référence : **Lenovo TB-X605F** (Android 9).
+
+> Installation d'une nouvelle tablette : voir **[INSTALLATION_TABLETTE.md](INSTALLATION_TABLETTE.md)**.
 
 ---
 
-## 📦 Contenu du projet
+## Contenu du projet
 
 ```
 Marco-Prime-Portable/
-├── marco-tablet/           # Application complète (frontend + backend + PWA)
-│   ├── marco-prime-frontend/   # Preact + TypeScript + Vite (port 3001)
-│   ├── marco-prime-backend/    # Node.js + Express + TypeScript (API REST)
-│   ├── frontend-pwa/           # manifest.json, sw.js, icons PWA
-│   ├── data/                   # Sélection catalogue (catalog-selection.json)
-│   ├── package.json            # Workspace pnpm (scripts dev/build)
-│   └── *.sh / *.md             # Scripts & docs d'origine
-├── tablet-scripts/         # Scripts d'automatisation tablette (Termux)
-│   ├── build-front.sh          # Build frontend + injection PWA + copy → backend/public
-│   ├── watchdog.sh             # Relance auto du serveur si crash (boucle 15 s)
-│   ├── marco.sh                # Boot script (screen off, fullscreen, serveur, watchdog)
-│   ├── copy-front.sh           # Copie front → public backend
-│   ├── inject-pwa.sh           # Injection manifest + service worker dans index.html
-│   ├── restart-marco.sh        # Redémarrage propre
-│   ├── verify-front.sh         # Vérification frontend servi
-│   ├── check-pwa.sh            # Test PWA
-│   ├── install-pwa.sh          # Installation PWA locale
-│   └── restart-marco.sh
-└── .gitignore              # Exclut node_modules, dist, logs, data sensible
+├── marco-tablet/
+│   ├── marco-prime-frontend/   # Preact + TypeScript + Vite + Tailwind (UI)
+│   ├── marco-prime-backend/    # Node.js + Hono + Drizzle + MySQL (API REST)
+│   │   └── .env                # configuration (base MySQL, port API)
+│   ├── frontend-pwa/           # manifest.json, sw.js, icônes
+│   └── data/                   # catalog-selection.json (sélection locale du soir)
+├── tablet-scripts/             # scripts + réglages Termux (voir son README.md)
+└── INSTALLATION_TABLETTE.md    # procédure complète de (re)installation
 ```
+
+`marco-tablet/` se copie tel quel dans `~/marco-tablet/` sur la tablette ; `tablet-scripts/`
+installe les scripts et dotfiles dans `~`.
 
 ---
 
-## 🚀 Démarrage rapide (sur la tablette)
+## Démarrage rapide (tablette)
 
-### Prérequis
-- **Termux** (F-Droid) + `pkg install nodejs pnpm`
-- **Bromite** (navigateur PWA)
-- `adb` pour déploiement initial (ou copier `marco-tablet/` via USB/SSH)
-
-### Installation
 ```bash
-# Dans Termux
-cd ~/marco-tablet
-pnpm install          # installe backend + frontend
-pnpm run build        # build frontend (Vite)
-./build-front.sh      # build + PWA + copy → backend/public
-./marco-prime-backend/dist/index.js  # lance le serveur (port 3001)
+# 1) dépendances + build
+cd ~/marco-tablet/marco-prime-backend  && pnpm install && pnpm build
+cd ~/marco-tablet/marco-prime-frontend && pnpm install
+cd ~ && sh build-front.sh              # build front + PWA -> backend/public
+
+# 2) lancer (serveur + watchdog)
+sh ~/relance-marco.sh
+
+# 3) ouvrir l'appli
+#    Bromite -> http://127.0.0.1:3001/buy  -> installer la PWA (icône "Marco")
 ```
 
-### Automatisation au boot (recommandée)
-```bash
-# Copier le boot script
-mkdir -p ~/.termux/boot
-cp tablet-scripts/marco.sh ~/.termux/boot/marco.sh
-chmod +x ~/.termux/boot/marco.sh
-```
-Le script `marco.sh` configure :
-- **Écran jamais en veille** (`screen_off_timeout=2147483647`, `stay_on_while_plugged_in=7`)
-- **Mode immersif plein écran** pour Bromite
-- Démarrage **immédiat** du serveur Node
-- Lancement du **watchdog** (relance auto si crash)
-- Build frontend en **arrière-plan** (non bloquant)
-
-> ⚠️ **Pas d'auto-ouverture du navigateur** : l'utilisateur lance Marco via l'icône PWA sur le bureau.
+Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 
 ---
 
-## 🔧 Architecture technique
+## Architecture
 
 | Composant | Technologie | Rôle |
 |-----------|-------------|------|
-| **Frontend** | Preact + TypeScript + Vite + Tailwind | UI tactile, gestion panier, membres, scan RFID |
-| **Backend** | Node.js + Express + TypeScript + Zod | API REST, auth, BDD SQLite, transactions SQL |
-| **Base** | SQLite (fichier `data/marco.db`) | Membres, produits, ventes, stats — **locale** |
-| **PWA** | Service Worker + manifest + icons | Offline-first, installable, fullscreen |
-| **Scan RFID** | Lecteur USB (mode clavier/HID) + buffer clavier | Détection rapide (≤100 ms) → auto-commit 180 ms |
+| **Frontend** | Preact + TypeScript + Vite + Tailwind | UI tactile : panier, membres, scan RFID, admin |
+| **Backend** | Node.js + **Hono** + Zod + Drizzle ORM | API REST, transactions |
+| **Base** | **MySQL distante** (`bde.its-tps.fr:3307`) | Membres, produits, ventes, stats, recharges |
+| **PWA** | manifest + service worker | Appli installable plein écran (le SW ne met **rien** en cache) |
+| **Scan RFID** | Lecteur USB (mode clavier/HID) | Détection rapide → commit automatique |
 
 ### Flux principal
-1. **Scan carte RFID** → buffer clavier → `useRfid` → `submitRfid()` → GET `/api/v1/member/:cardNumber`
-2. **Membre chargé** → affichage solde + panier verrouillé/déverrouillé
-3. **Ajout produits** → clic bouton → `shopping.append(product)` → feedback visuel (pulse vert) + son bref
-4. **Paiement** → POST `/api/v1/purchase` (transaction unique) → mise à jour solde + historique
-5. **Rechargement** → carte admin + montant → POST `/api/v1/recharge`
+1. **Scan carte RFID** → buffer clavier → `GET /api/v1/member/:cardNumber`
+2. **Membre chargé** → solde affiché, panier déverrouillé (refus si solde négatif)
+3. **Ajout produits** → feedback visuel + son
+4. **Paiement** → `POST /api/v1/purchase` (transaction) → solde + historique (débit immédiat)
+5. **Rechargement** → carte admin + montant → `POST /api/v1/recharge`
 
-### Routes clés (publiques, sans admin)
+### Routes principales (API, préfixe `/api/v1`)
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/v1/member-promotions` | Liste promotions (pour filtre recherche) |
-| GET | `/api/v1/member/:cardNumber` | Récupère membre par n° carte |
-| POST | `/api/v1/members/search` | Recherche nom/prénom/promo/n° carte |
-| POST | `/api/v1/purchase` | Valide un panier (transaction) |
-| POST | `/api/v1/recharge` | Recharge solde (carte admin) |
+| GET | `/system/status` | Santé du serveur |
+| GET | `/member-promotions` | Promotions (filtre recherche) |
+| GET | `/member/:card_number` | Membre par n° de carte |
+| POST | `/members/search` | Recherche nom / prénom / promo / carte |
+| POST | `/purchase` | Valide un panier (transaction) |
+| POST | `/recharge` | Recharge de solde (carte admin) |
+
+Documentation API détaillée : `marco-tablet/marco-prime-backend/README.md`.
 
 ---
 
-## 🎮 Interface utilisateur (améliorations récentes)
+## Automatisation (tablette)
 
-| Fonction | Implémentation |
-|----------|----------------|
-| **Clavier natif Android** | Tous les champs texte (recherche membre, historique, config, création membre/produit) → `inputMode="text"` → clavier système (plus de clavier AZERTY custom) |
-| **Retour visuel scan** | Flash vert/rouge (450 ms) + bip WebAudio (OK 988/1319 Hz, erreur 220/165 Hz) + vibration |
-| **Retour visuel article** | Pulse vert sur le bouton produit cliqué + micro-bip |
-| **Membres récents** | 6 derniers scannés (localStorage `marco.recent-members`) → puces cliquables |
-| **Changement membre** | Bouton « Changer de membre » + auto-reset panier au nouveau scan |
-
----
-
-## 📱 PWA & Mode kiosque
-
-- `frontend-pwa/manifest.json` : `display: "standalone"`, `orientation: "landscape"`
-- `sw.js` : cache statique + `networkFirst` pour `/api/*`
-- Installation : ouvrir `http://localhost:3001/buy` dans Bromite → ☰ → « Installer l'application »
-- Mode immersif : `settings put global policy_control immersive.full=org.bromite.bromite`
-- Icône sur le bureau → lance l'app en plein écran sans barre d'adresse
+| Élément | Rôle |
+|---------|------|
+| `~/.termux/boot/marco.sh` | Au boot : écran toujours allumé, mode immersif, serveur + watchdog, build en fond, `sshd` |
+| `~/watchdog.sh` | Relance le serveur (boucle 15 s) s'il tombe |
+| `~/relance-marco.sh` | Démarre serveur + watchdog (`--force` = redémarre le serveur) |
+| `~/build-front.sh` | Build front + injection PWA + copie vers `backend/public` |
+| `~/rebuild.sh` | Compile le backend **et** rebuild le frontend |
+| `~/.bashrc` / `~/.profile` | Relance le serveur à l'ouverture d'une session Termux |
+| `~/.shortcuts/relance.sh` | Raccourci Termux « Relance Marco » |
 
 ---
 
-## 🛡️ Robustesse & surveillance
-
-| Outil | Rôle |
-|-------|------|
-| `watchdog.sh` | Boucle 15 s → `pgrep node dist/index.js` → relance + log |
-| `marco.sh` (boot) | Purge setup région, configs écran, démarrage serveur + watchdog, build en fond |
-| `settings` système | Veille désactivée, fullscreen forcé |
-| Logs | `marco-prime-backend/server.log` (rotation manuelle) |
-
----
-
-## 📂 Données & persistence
-
-- `marco-tablet/data/marco.db` : **Base SQLite unique** (membres, produits, ventes, rechargements)
-- `marco-tablet/data/catalog-selection.json` : Catalogue actif pour la soirée
-- `localStorage` navigateur : `marco.recent-members` (6 derniers), préférences UI
-- **Sauvegarde** : copier le dossier `marco-tablet/data/` régulièrement
-
----
-
-## 🔄 Déploiement & mises à jour
-
-### Build frontend (après modifs code)
-```bash
-cd ~/marco-tablet/marco-prime-frontend
-pnpm run build
-~/build-front.sh          # injecte PWA + copie vers backend/public
-```
-
-### Mise à jour code (depuis GitHub — optionnel)
-Le repo d'origine est `https://github.com/ZoZo-Campo/Marco-Prime`. Cette version portable **ne synchronise pas** avec l'amont : elle vit en local sur la tablette. Pour intégrer des changements amont, faire un merge manuel.
-
-### Ajout d'un script tablette
-Placez-le dans `tablet-scripts/`, rendez-le exécutable, appelez-le depuis `marco.sh` ou `watchdog.sh` si besoin.
-
----
-
-## ⚠️ Points d'attention / Limitations
+## Points d'attention
 
 | Sujet | Détail |
 |-------|--------|
-| **Pas de root / `su`** | Android 9 Lenovo : `su` indisponible via `adb shell` → scripts utilisent `run-as com.termux` pour opérations fichiers |
-| **`100dvh` WebView bug** | Layout racine utilise `h-screen` (100vh stable) au lieu de `100dvh` (864 px > 800 px viewport) — corrige le bandeau bas qui sort de l'écran |
-| **Clavier système** | Plus de clavier AZERTY custom : `OnScreenKeyboard` supprimé de toutes les saisies (membre, historique, config) |
-| **Un seul onglet CDP** | Chrome DevTools flaky avec plusieurs onglets → garder 1 onglet `/buy` |
-| **Base SQLite** | Fichier unique — pas de réplication. Sauvegardez `data/` avant toute manip risquée. |
-| **Heure système** | Pas de NTP auto → vérifier `date` au boot si horodatage critique |
+| **Base MySQL distante** | Nécessite un réseau joignant `bde.its-tps.fr:3307`. Pas de base locale. |
+| **Pas de root** | `su` indisponible ; les opérations fichiers passent par `run-as com.termux`. |
+| **PWA non lançable par intent** | `WebappActivity` non exportée → l'app se lance par tap sur l'icône « Marco ». |
+| **Service worker** | No-op (aucun cache). Une nouvelle version est servie au rechargement (assets hachés). |
+| **`adb shell` instable** | En cas de blocage : `adb kill-server && adb start-server` ; capture via `screencap` fichier. |
 
 ---
 
-## 📋 Checklist mise en production (soirée)
-
-- [ ] Tablette chargée / branchée
-- [ ] Lecteur RFID branché (USB OTG) + reconnu (test scan → son + membre affiché)
-- [ ] Serveur répond `curl http://localhost:3001/ping` → `200`
-- [ ] PWA installée + icône bureau visible
-- [ ] Bandeau bas (Achats / Rechargement / Config / Base / Fouaille) visible en bas d'écran
-- [ ] Scan carte test → membre chargé, solde affiché, panier fonctionnel
-- [ ] Watchdog actif (`pgrep -f watchdog.sh`)
-- [ ] Boot script en place (`~/.termux/boot/marco.sh`)
-
----
-
-## 🤝 Crédits & Licence
-
-Projet original : **Marco Prime** — Caisse tactile RFID pour événements scolaires  
-Auteurs : Enzo Campofranco & Romain Bourdinho  
-Cette version portable : adaptations tablette Lenovo TB-X605F (Android 9, Termux, Bromite)  
-Licence : voir `LICENSE` du repo original (`Marco-Prime`)
-
----
-
-## 📞 Support / Dépannage rapide
+## Dépannage
 
 | Symptôme | Action |
 |----------|--------|
-| Serveur ne répond pas | `pgrep -f "node dist/index.js"` → absent → `./marco-prime-backend/dist/index.js &` |
-| Bandeau bas disparu | Layout `h-screen` déployé → recharger la page (`location.reload()` via CDP ou rouvrir l'app) |
-| Clavier natif ne s'ouvre pas | Vérifier `inputMode` non forcé à `none` dans les champs de recherche |
-| Scan RFID ignoré | Lecteur en mode clavier ? `lsusb` → `dmesg` → test `cat /dev/hidrawX` |
-| PWA ne s'installe pas | `sw.js` accessible ? `curl http://localhost:3001/sw.js` → 200 + `navigator.serviceWorker.register()` |
-| Build frontend échoue | `cd marco-prime-frontend && pnpm run build` → lire `build.log` |
+| Serveur ne répond pas | `sh ~/relance-marco.sh --force` |
+| Frontend pas à jour | `sh ~/build-front.sh` puis recharger |
+| Build échoue | Lire `marco-prime-frontend/build.log` / `marco-prime-backend/build-back.log` |
+| Logs serveur | `marco-prime-backend/server.log` |
 
 ---
 
-> **Note** : Ce dossier `/Users/enzocampofranco/Desktop/Marco-Prime-Portable` contient **tout le nécessaire** pour reproduire l'environnement tablette. Il n'y a **pas de secrets** (pas de `.env`, pas de base prod). Pour déployer : copier `marco-tablet/` sur la tablette (Termux home), `pnpm install && ./build-front.sh`, configurer le boot script, tester.
+## Crédits & licence
+
+Projet original **Marco Prime** — caisse tactile RFID pour événements scolaires.
+Auteurs : Enzo Campofranco & Romain Bourdinho.
+Licence : voir `marco-tablet/marco-prime-backend/LICENSE`.

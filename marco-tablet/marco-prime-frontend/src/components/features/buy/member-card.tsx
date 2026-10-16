@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "preact/hooks";
 import type z from "zod";
+import { RefreshCw, ScanLine } from "lucide-preact";
 import { useMember } from "../../../contexts/member-context";
 import { shopping } from "../../../contexts/shopping-context";
 import { cn } from "../../../utils/cn";
-import { RefreshCw } from "lucide-preact";
+import { formatEuro } from "../../../utils/format";
 import { hasInsufficientBalance } from "../../../utils/validation";
 import { playScanFeedback } from "../../../utils/scan-sound";
 import type { memberSchema } from "../../../schemas/member.schema";
@@ -67,7 +68,7 @@ function MemberCardError({
   clear: () => void;
 }) {
   return (
-    <div>
+    <div class="space-y-2">
       <Alert variant="destructive">
         <AlertTitle>Carte non reconnue</AlertTitle>
         <AlertDescription class="flex flex-col gap-2">
@@ -87,14 +88,13 @@ function MemberCardError({
 
 function NoMemberCard({ inputLength }: { inputLength: number }) {
   return (
-    <div>
-      <Alert variant={inputLength > 0 ? "default" : "destructive"}>
-        <AlertDescription>
-          {inputLength > 0
-            ? `Saisie en cours : ${inputLength} chiffre${inputLength > 1 ? "s" : ""}. Appuyez sur Entrée.`
-            : "Veuillez scanner une carte ou saisir son numéro puis appuyer sur Entrée."}
-        </AlertDescription>
-      </Alert>
+    <div class="rounded-2xl border border-dashed p-5 text-center">
+      <ScanLine class="mx-auto size-7 text-muted-foreground" />
+      <p class="mt-2 text-sm font-medium text-muted-foreground">
+        {inputLength > 0
+          ? `Saisie en cours : ${inputLength} chiffre${inputLength > 1 ? "s" : ""}. Appuyez sur Entrée.`
+          : "Scannez une carte ou saisissez son numéro puis Entrée."}
+      </p>
       <MemberSearch />
     </div>
   );
@@ -115,42 +115,69 @@ function MemberCardLoaded({
     0,
     Math.round((shopping.total.value - Number(member.balance)) * 100) / 100,
   );
+  const initials =
+    `${member.firstName?.[0] ?? ""}${member.lastName?.[0] ?? ""}`.toUpperCase();
+
   return (
-    <>
-      <Alert>
-        <AlertTitle>
-          {member.firstName} {member.lastName}
-        </AlertTitle>
-        <AlertDescription class={cn("space-y-1", notEnoughMoney && "text-destructive")}>
-          <p>Solde : {member.balance}€</p>
-          {member.isBirthday && <BirthdayBadge firstName={member.firstName} />}
-          {notEnoughMoney && (
-            <p class="font-semibold">
-              Paiement impossible — il manque {missingAmount.toFixed(2)}€.
-            </p>
+    <div class="rounded-2xl border bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/20 text-lg font-extrabold text-primary">
+          {initials || "?"}
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-lg font-bold leading-tight">
+            {member.firstName} {member.lastName}
+          </p>
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Solde
+          </p>
+        </div>
+        <strong
+          class={cn(
+            "text-2xl font-extrabold tabular-nums",
+            notEnoughMoney ? "text-destructive" : "text-success",
           )}
-        </AlertDescription>
-      </Alert>
+        >
+          {formatEuro(member.balance)}
+        </strong>
+      </div>
+
+      {member.isBirthday && (
+        <div class="mt-2">
+          <BirthdayBadge firstName={member.firstName} />
+        </div>
+      )}
+
+      {notEnoughMoney && (
+        <p class="mt-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">
+          Paiement impossible — il manque {formatEuro(missingAmount)}.
+        </p>
+      )}
+
       <Button
-        class="mt-2 w-full"
+        class="mt-3 w-full rounded-xl"
         type="button"
         variant="outline"
+        size="sm"
         onClick={() => {
           shopping.reset();
           clear();
         }}
       >
-        <RefreshCw class="size-5" /> Changer de membre
+        <RefreshCw class="size-4" /> Changer de membre
       </Button>
-    </>
+    </div>
   );
 }
 
 function MemberCardLoading() {
   return (
-    <Alert class="flex flex-col gap-3.5 py-4">
-      <Skeleton class="h-5 w-28" />
-      <Skeleton class="h-4 w-16" />
-    </Alert>
+    <div class="flex items-center gap-3 rounded-2xl border p-4">
+      <Skeleton class="size-12 rounded-full" />
+      <div class="flex-1 space-y-2">
+        <Skeleton class="h-5 w-32" />
+        <Skeleton class="h-4 w-16" />
+      </div>
+    </div>
   );
 }

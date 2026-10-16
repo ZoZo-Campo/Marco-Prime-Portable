@@ -111,12 +111,11 @@ export const openApiSpec = {
       post: {
         summary: "Search members by name and/or promotion",
         description:
-          "Administrator-only member lookup used when a customer has no RFID card",
+          "Kiosk member lookup used when a customer has no RFID card",
         tags: ["Members"],
         security: [{ bearerAuth: [] }],
         responses: {
           "200": { description: "Matching card-enabled members" },
-          "403": { description: "Administrator card required" },
         },
       },
     },

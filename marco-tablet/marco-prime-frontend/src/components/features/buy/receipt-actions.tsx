@@ -8,6 +8,7 @@ import { TICKET_ROUTE_URL } from "../../../pages/ticket";
 import { Button } from "../../ui/button";
 import { apiHeaders, apiUrl } from "../../../config/api";
 import { hasInsufficientBalance } from "../../../utils/validation";
+import { formatEuro } from "../../../utils/format";
 import {
   pendingPurchaseSignal,
   purchaseErrorSignal,
@@ -126,7 +127,7 @@ export function SubmitButton() {
 
   return (
     <Button
-      class="min-h-16 w-full text-xl font-bold shadow-md"
+      class="min-h-16 w-full rounded-2xl text-xl font-extrabold shadow-lg"
       disabled={!canSubmit}
       variant="default"
       onClick={handlePurchase}
@@ -136,7 +137,7 @@ export function SubmitButton() {
       ) : hasInsufficientFunds ? (
         "Solde insuffisant"
       ) : (
-        `${hasPendingPurchase ? "Réessayer" : "Payer"} ${shopping.total.value.toFixed(2)}€`
+        `${hasPendingPurchase ? "Réessayer" : "Payer"} ${formatEuro(shopping.total.value)}`
       )}
     </Button>
   );

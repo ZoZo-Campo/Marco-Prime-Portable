@@ -7,8 +7,9 @@ import { memberListSchema, type MemberSchema } from "../../../schemas/member.sch
 import { loadRecentMembers } from "../../../utils/recent-members";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
+import { QrScanButton } from "./qr-scan-button";
 export function MemberSearch() {
-  const { pause, resume, select } = useMember();
+  const { pause, resume, select, submitCardNumber } = useMember();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [promotion, setPromotion] = useState("");
@@ -125,6 +126,11 @@ export function MemberSearch() {
       <Button class="mt-3 w-full" type="button" variant="outline" onClick={show}>
         <UserRoundSearch /> Rechercher un membre
       </Button>
+      <QrScanButton
+        onSubmit={(cardNumber) => submitCardNumber(cardNumber)}
+        onScanStart={pause}
+        onScanEnd={resume}
+      />
       {open && (
         <div
           class="fixed z-50 flex flex-col items-center bg-black/75 p-3"

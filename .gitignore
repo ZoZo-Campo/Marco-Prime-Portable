@@ -13,7 +13,6 @@
 .env
 .env.local
 .env.*.local
-.env.orange-pi
 
 # OS
 .DS_Store

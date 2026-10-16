@@ -7,7 +7,6 @@ import { PurchaseController } from "../controllers/purchase.controller.js";
 import { RechargeController } from "../controllers/recharge.controller.js";
 import { StatisticsController } from "../controllers/statistics.controller.js";
 import { SystemController } from "../controllers/system.controller.js";
-import { WifiController } from "../controllers/wifi.controller.js";
 import { AccountingController } from "../controllers/accounting.controller.js";
 import { OrderCorrectionController } from "../controllers/order-correction.controller.js";
 import { AdminManagementController } from "../controllers/admin-management.controller.js";
@@ -25,7 +24,6 @@ import {
   statisticsCostUpdateSchema,
   statisticsQuerySchema,
 } from "../validators/statistics.validator.js";
-import { wifiAdminSchema, wifiConnectSchema } from "../validators/wifi.validator.js";
 import { accountingExportSchema, accountingReadSchema, accountingUpdateSchema } from "../validators/accounting.validator.js";
 import { correctionListSchema, correctionRequestSchema } from "../validators/order-correction.validator.js";
 import {
@@ -45,22 +43,12 @@ const purchaseController = new PurchaseController();
 const rechargeController = new RechargeController();
 const statisticsController = new StatisticsController();
 const systemController = new SystemController();
-const wifiController = new WifiController();
 const accountingController = new AccountingController();
 const correctionController = new OrderCorrectionController();
 const adminManagement = new AdminManagementController();
 
 const router = new Hono()
   .get("/system/status", (c) => systemController.getStatus(c))
-  .post("/system/wifi/status", zValidator("json", wifiAdminSchema), (c) =>
-    wifiController.getStatus(c),
-  )
-  .post("/system/wifi/scan", zValidator("json", wifiAdminSchema), (c) =>
-    wifiController.scan(c),
-  )
-  .post("/system/wifi/connect", zValidator("json", wifiConnectSchema), (c) =>
-    wifiController.connect(c),
-  )
   .get(
     "/member/:card_number",
     zValidator("param", cardNumberParamSchema),
