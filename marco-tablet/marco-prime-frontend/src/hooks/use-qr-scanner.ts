@@ -11,9 +11,12 @@ const HAVE_CURRENT_DATA = 2;
 // décodage est LE facteur de vitesse : jsQR coûte ~quadratiquement le nombre de
 // pixels et le processeur de la tablette est lent (mesures réelles : 480 px ≈
 // 1,6 s/frame sur une scène normale, jusqu'à 16 s sur une scène texturée !).
-// À 224 px on est à ~0,4 s/frame tout en décodant sans problème un QR qui
-// occupe au moins la moitié du cadre (validé jusqu'à ~96 px plein cadre).
-const MAX_DECODE_DIMENSION = 224;
+// Le QR ne contient qu'un numéro de carte (10 chiffres max) : 160 px suffisent
+// et divisent le temps de décodage par ~2. Si le QR est petit/éloigné, on
+// repasse automatiquement à 224 px après 1,5 s sans détection.
+const FAST_DECODE_DIMENSION = 160;
+const FALLBACK_DECODE_DIMENSION = 224;
+const FALLBACK_AFTER_MS = 1_500;
 // Un QR classique est sombre sur clair : l'analyse « dontInvert » suffit et va
 // ~2× plus vite. On tente l'inversion (QR clair sur sombre) ponctuellement.
 const INVERT_RETRY_MS = 1_200;
@@ -253,6 +256,8 @@ export function useQrScanner(
 
     let cancelled = false;
     let lastInvertAt = 0;
+    let decodeDimension = FAST_DECODE_DIMENSION;
+    let firstFrameAt: number | null = null;
 
     const decodeFrame = () => {
       const video = videoRef.current;
@@ -261,19 +266,27 @@ export function useQrScanner(
       const sourceHeight = video.videoHeight;
       if (!sourceWidth || !sourceHeight) return;
 
+      const now = performance.now();
+      if (firstFrameAt === null) firstFrameAt = now;
+      if (
+        decodeDimension === FAST_DECODE_DIMENSION &&
+        now - firstFrameAt >= FALLBACK_AFTER_MS
+      ) {
+        decodeDimension = FALLBACK_DECODE_DIMENSION;
+      }
+
       // Le cadre affiché est un carré central : on analyse exactement cette
       // zone (object-cover), ce qui évite de décoder des pixels inutiles.
       const side = Math.min(sourceWidth, sourceHeight);
       const sourceX = (sourceWidth - side) / 2;
       const sourceY = (sourceHeight - side) / 2;
-      const size = Math.min(MAX_DECODE_DIMENSION, side);
+      const size = Math.min(decodeDimension, side);
       if (canvas.width !== size) canvas.width = size;
       if (canvas.height !== size) canvas.height = size;
 
       try {
         context.drawImage(video, sourceX, sourceY, side, side, 0, 0, size, size);
         const image = context.getImageData(0, 0, size, size);
-        const now = performance.now();
         const attemptBoth = now - lastInvertAt >= INVERT_RETRY_MS;
         if (attemptBoth) lastInvertAt = now;
         const code = jsQR(image.data, image.width, image.height, {

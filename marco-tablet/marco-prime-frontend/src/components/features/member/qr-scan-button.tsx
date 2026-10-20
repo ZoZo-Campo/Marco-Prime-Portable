@@ -1,6 +1,10 @@
 import { Check, QrCode, X } from "lucide-preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useQrScanner } from "../../../hooks/use-qr-scanner";
+import {
+  isValidCardNumber,
+  MAX_CARD_NUMBER_DIGITS,
+} from "../../../constants";
 import { playItemFeedback } from "../../../utils/scan-sound";
 import { cn } from "../../../utils/cn";
 import { Button } from "../../ui/button";
@@ -22,9 +26,16 @@ interface QrScanButtonProps {
  */
 function cardNumberFromQr(text: string): string | null {
   const raw = text.trim();
-  if (/^\d{1,32}$/.test(raw)) return raw;
-  const digits = raw.replace(/\D/g, "");
-  return /^\d{1,32}$/.test(digits) ? digits : null;
+  if (isValidCardNumber(raw)) return raw;
+
+  const candidates = (raw.match(/\d+/g) ?? []).filter(
+    (value) => value.length <= MAX_CARD_NUMBER_DIGITS,
+  );
+  return candidates.reduce<string | null>(
+    (best, candidate) =>
+      !best || candidate.length > best.length ? candidate : best,
+    null,
+  );
 }
 
 export function QrScanButton({

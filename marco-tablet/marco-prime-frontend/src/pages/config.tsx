@@ -19,6 +19,10 @@ import {
 } from "lucide-preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { apiHeaders, apiUrl } from "../config/api";
+import {
+  isValidCardNumber,
+  MAX_CARD_NUMBER_DIGITS,
+} from "../constants";
 import { MemberProvider, useMember } from "../contexts/member-context";
 import { useApi } from "../hooks/use-api";
 import {
@@ -175,13 +179,13 @@ function ConfigContent() {
             <Keypad
               value={manualCardNumber}
               onChange={setManualCardNumber}
-              maxLength={32}
+              maxLength={MAX_CARD_NUMBER_DIGITS}
               disabled={memberLoading}
             />
             <Button
               type="submit"
               size="lg"
-              disabled={memberLoading || !/^\d{5,32}$/.test(manualCardNumber)}
+              disabled={memberLoading || !isValidCardNumber(manualCardNumber)}
             >
               {memberLoading ? <Loader2 class="size-5 animate-spin" /> : <Check class="size-5" />}
               Valider la carte

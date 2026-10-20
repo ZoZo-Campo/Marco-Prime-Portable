@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import {
+  isValidCardNumber,
+  MAX_CARD_NUMBER_DIGITS,
+} from "../constants";
 
 interface UseRfidOptions {
   disabled?: boolean;
 }
 
 const RFID_MIN_DIGITS = 5;
-const RFID_MAX_KEY_INTERVAL_MS = 100;
-const RFID_END_DELAY_MS = 180;
+const RFID_MAX_KEY_INTERVAL_MS = 150;
+const RFID_END_DELAY_MS = 300;
 const MANUAL_INPUT_TIMEOUT_MS = 5_000;
 
 function digitFromKeyboardEvent(event: KeyboardEvent) {
@@ -32,7 +36,7 @@ export function useRfid(options: UseRfidOptions = {}) {
     lastDigitAtRef.current = undefined;
     rapidInputRef.current = true;
     setInputLength(0);
-    if (!/^\d+$/.test(cardNumber)) return;
+    if (!isValidCardNumber(cardNumber)) return;
     setValue(cardNumber);
     setScanId((current) => current + 1);
   };
@@ -52,6 +56,10 @@ export function useRfid(options: UseRfidOptions = {}) {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+
       if (event.key === "Enter" || event.key === "Tab") {
         window.clearTimeout(resetTimerRef.current);
         if (bufferRef.current.length > 0) {
@@ -80,7 +88,7 @@ export function useRfid(options: UseRfidOptions = {}) {
 
       const digit = digitFromKeyboardEvent(event);
       if (digit !== undefined) {
-        const eventTime = event.timeStamp;
+        const eventTime = performance.now();
         if (bufferRef.current.length === 0) {
           rapidInputRef.current = true;
         } else if (
@@ -91,7 +99,7 @@ export function useRfid(options: UseRfidOptions = {}) {
         }
         lastDigitAtRef.current = eventTime;
 
-        if (bufferRef.current.length < 32) {
+        if (bufferRef.current.length < MAX_CARD_NUMBER_DIGITS) {
           bufferRef.current += digit;
           setInputLength(bufferRef.current.length);
         }
@@ -99,6 +107,13 @@ export function useRfid(options: UseRfidOptions = {}) {
         const looksLikeRfidScan =
           rapidInputRef.current &&
           bufferRef.current.length >= RFID_MIN_DIGITS;
+        if (
+          looksLikeRfidScan &&
+          bufferRef.current.length === MAX_CARD_NUMBER_DIGITS
+        ) {
+          commitBuffer();
+          return;
+        }
         resetTimerRef.current = window.setTimeout(
           looksLikeRfidScan ? commitBuffer : clearBuffer,
           looksLikeRfidScan
@@ -124,7 +139,7 @@ export function useRfid(options: UseRfidOptions = {}) {
     submit: (cardNumber: string) => {
       clearBuffer();
       const normalizedCardNumber = cardNumber.trim();
-      if (!/^\d{1,32}$/.test(normalizedCardNumber)) return false;
+      if (!isValidCardNumber(normalizedCardNumber)) return false;
       setValue(normalizedCardNumber);
       setScanId((current) => current + 1);
       return true;

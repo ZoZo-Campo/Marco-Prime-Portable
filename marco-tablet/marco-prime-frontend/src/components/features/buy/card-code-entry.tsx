@@ -1,5 +1,6 @@
 import { Check } from "lucide-preact";
 import { useState } from "preact/hooks";
+import { MAX_CARD_NUMBER_DIGITS } from "../../../constants";
 import { Button } from "../../ui/button";
 import { Keypad } from "../recharge/keypad";
 
@@ -32,7 +33,12 @@ export function CardCodeEntry({
         </span>
       </div>
       <div class="w-72 self-center">
-        <Keypad value={code} onChange={setCode} maxLength={32} disabled={disabled} />
+        <Keypad
+          value={code}
+          onChange={setCode}
+          maxLength={MAX_CARD_NUMBER_DIGITS}
+          disabled={disabled}
+        />
       </div>
       <Button class="h-12 w-full" type="button" onClick={submit} disabled={disabled || code.length < 1}>
         <Check class="size-5" /> Valider
