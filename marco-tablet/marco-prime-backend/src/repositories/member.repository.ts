@@ -13,6 +13,7 @@ export class MemberRepository {
         cardNumber: members.cardNumber,
         balance: members.balance,
         admin: members.admin,
+        contributor: members.contributor,
         birthMonthDay: sql<string | null>`DATE_FORMAT(${members.birthDate}, '%m-%d')`,
       })
       .from(members)
@@ -48,6 +49,7 @@ export class MemberRepository {
         cardNumber: members.cardNumber,
         balance: members.balance,
         admin: members.admin,
+        contributor: members.contributor,
         class: members.class,
         birthMonthDay: sql<string | null>`DATE_FORMAT(${members.birthDate}, '%m-%d')`,
       })

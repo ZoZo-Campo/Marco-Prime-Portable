@@ -34,6 +34,7 @@ export const openApiSpec = {
           cardNumber: { type: "number" },
           balance: { type: "string" },
           admin: { type: "boolean" },
+          contributor: { type: "boolean" },
         },
       },
       Product: {
@@ -70,6 +71,113 @@ export const openApiSpec = {
               },
             },
           },
+        },
+      },
+    },
+    "/ready": {
+      get: {
+        summary: "Readiness check",
+        description: "Check the API and the MySQL connection",
+        tags: ["Health"],
+        responses: {
+          "200": { description: "API and database ready" },
+          "500": { description: "Database unavailable" },
+        },
+      },
+    },
+    "/api/v1/system/status": {
+      get: {
+        summary: "Backend, database and Fouaille status",
+        tags: ["System"],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": { description: "Service availability and latency" },
+        },
+      },
+    },
+    "/api/v1/system/env/status": {
+      post: {
+        summary: "Read the masked .env status",
+        description:
+          "Returns whether .env exists, its API port, auth mode, database host/name (never the password) and local data directory. Administrator card required.",
+        tags: ["System"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["adminCardNumber"],
+                properties: {
+                  adminCardNumber: { type: "integer" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Masked configuration status" },
+          "403": { description: "Administrator card required" },
+        },
+      },
+    },
+    "/api/v1/system/env/validate": {
+      post: {
+        summary: "Validate an imported .env",
+        description:
+          "Checks the allowed keys, required tablet values, and tests the MySQL connection without writing the file. Administrator card required.",
+        tags: ["System"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["adminCardNumber", "content"],
+                properties: {
+                  adminCardNumber: { type: "integer" },
+                  content: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Validation result and tested database" },
+          "400": { description: "Invalid .env content" },
+          "403": { description: "Administrator card required" },
+        },
+      },
+    },
+    "/api/v1/system/env": {
+      post: {
+        summary: "Import a .env and restart Marco",
+        description:
+          "Validates the content, tests MySQL, backs up the previous .env, writes the new one with 0600 permissions, then schedules a server restart. Administrator card required.",
+        tags: ["System"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["adminCardNumber", "content"],
+                properties: {
+                  adminCardNumber: { type: "integer" },
+                  content: { type: "string" },
+                  restart: { type: "boolean", default: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Configuration imported and restart scheduled" },
+          "400": { description: "Invalid configuration" },
+          "403": { description: "Administrator card required" },
         },
       },
     },

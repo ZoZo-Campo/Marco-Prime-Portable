@@ -86,7 +86,10 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   const [eventDate, setEventDate] = useState("");
   const [eventStartTime, setEventStartTime] = useState(DEFAULT_START_TIME);
   const [eventEndTime, setEventEndTime] = useState(DEFAULT_END_TIME);
-  const [rechargeDate, setRechargeDate] = useState(todayLocal());
+  const [rechargeFromDate, setRechargeFromDate] = useState(todayLocal());
+  const [rechargeFromTime, setRechargeFromTime] = useState(DEFAULT_START_TIME);
+  const [rechargeToDate, setRechargeToDate] = useState(todayLocal());
+  const [rechargeToTime, setRechargeToTime] = useState(DEFAULT_END_TIME);
   const [rechargeSummary, setRechargeSummary] = useState<AccountingExport["rechargeSummary"] | null>(null);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [productSearch, setProductSearch] = useState("");
@@ -157,7 +160,10 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       setEventDate(value.eventDate);
       setEventStartTime(value.eventStartTime);
       setEventEndTime(value.eventEndTime);
-      setRechargeDate(value.eventDate);
+      setRechargeFromDate(value.eventDate);
+      setRechargeFromTime(value.eventStartTime);
+      setRechargeToDate(value.eventEndTime <= value.eventStartTime ? addDaysIso(value.eventDate, 1) : value.eventDate);
+      setRechargeToTime(value.eventEndTime);
       setRows(editableRows);
       lastSavedSignature.current = signature(nextDraft);
       loaded.current = true;
@@ -357,7 +363,10 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
     setEventDate(nextDraft.eventDate);
     setEventStartTime(nextDraft.eventStartTime);
     setEventEndTime(nextDraft.eventEndTime);
-    setRechargeDate(nextDraft.eventDate);
+    setRechargeFromDate(nextDraft.eventDate);
+    setRechargeFromTime(nextDraft.eventStartTime);
+    setRechargeToDate(nextDraft.eventEndTime <= nextDraft.eventStartTime ? addDaysIso(nextDraft.eventDate, 1) : nextDraft.eventDate);
+    setRechargeToTime(nextDraft.eventEndTime);
     setRows(nextDraft.rows);
     setLastPrefillAt(null);
     setLastExportSignature(null);
@@ -422,8 +431,18 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   };
 
   const exportRecharges = async () => {
-    if (!rechargeDate) {
-      setMessage("Choisissez d’abord la date des rechargements.");
+    if (!rechargeFromDate || !rechargeToDate) {
+      setMessage("Choisissez les dates de début et de fin des rechargements.");
+      return;
+    }
+    const from = new Date(`${rechargeFromDate}T${rechargeFromTime}:00`);
+    const to = new Date(`${rechargeToDate}T${rechargeToTime}:00`);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      setMessage("La plage de rechargements est invalide.");
+      return;
+    }
+    if (to <= from) {
+      setMessage("La date et l’heure de fin doivent être après le début.");
       return;
     }
     try {
@@ -432,7 +451,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         headers: apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           adminCardNumber,
-          ...eventRange(rechargeDate, eventStartTime, eventEndTime),
+          from: from.toISOString(),
+          to: to.toISOString(),
         }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -442,8 +462,12 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         ["Transaction", "Date", "Membre", "Montant", "Paiement reçu"],
         exported.recharges.map((recharge) => [recharge.orderId, formatCsvDate(recharge.date), memberName(recharge), csvNumber(Number(recharge.amount), 2), paymentMethodLabel(recharge.paymentMethod)]),
       );
-      downloadBlob(`rechargements-${formatDateFr(rechargeDate)}.csv`, csvFile("rechargements.csv", csv).blob);
-      setMessage(`${exported.recharges.length} rechargement(s) exporté(s) le ${formatDateFr(rechargeDate)} sur la période ${eventStartTime}–${eventEndTime}.`);
+      const sameDay = rechargeFromDate === rechargeToDate;
+      const fileName = sameDay
+        ? `rechargements-${formatDateFr(rechargeFromDate)}.csv`
+        : `rechargements-${formatDateFr(rechargeFromDate)}_au_${formatDateFr(rechargeToDate)}.csv`;
+      downloadBlob(fileName, csvFile("rechargements.csv", csv).blob);
+      setMessage(`${exported.recharges.length} rechargement(s) exporté(s) du ${formatDateFr(rechargeFromDate)} ${rechargeFromTime} au ${formatDateFr(rechargeToDate)} ${rechargeToTime}.`);
     } catch (error) {
       setMessage(`Export des rechargements impossible : ${error instanceof Error ? error.message : "erreur inconnue"}`);
     }
@@ -509,7 +533,10 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
               onInput={(event) => {
                 const value = event.currentTarget.value;
                 setEventDate(value);
-                setRechargeDate(value);
+                setRechargeFromDate(value);
+                setRechargeFromTime(eventStartTime);
+                setRechargeToDate(eventEndTime <= eventStartTime ? addDaysIso(value, 1) : value);
+                setRechargeToTime(eventEndTime);
                 setLastPrefillAt(null);
                 setMessage(null);
               }}
@@ -651,20 +678,54 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           {rows.length === 0 && <p class="p-8 text-center text-muted-foreground">Ajoutez un produit ou préremplissez les ventes pour commencer.</p>}
         </Card>
 
-          <Card class="flex flex-row flex-wrap items-end gap-3 p-4">
-            <div class="flex flex-col gap-1 text-sm">
-              <span class="font-medium">Rechargements de la soirée</span>
-              <span class="text-muted-foreground">
-                {rechargeDate
-                  ? `${formatDateFr(rechargeDate)} · ${eventStartTime} → ${eventEndTime}${endIsNextDay ? " (lendemain)" : ""}`
-                  : "Choisissez une date ci-dessous."}
-              </span>
+          <Card class="flex flex-col gap-3 p-4">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+              <div class="flex flex-col gap-1 text-sm">
+                <span class="font-medium">Rechargements à exporter</span>
+                <span class="text-muted-foreground">
+                  Du {formatDateFr(rechargeFromDate)} {rechargeFromTime} au {formatDateFr(rechargeToDate)} {rechargeToTime}
+                </span>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setRechargeFromDate(eventDate);
+                    setRechargeFromTime(eventStartTime);
+                    setRechargeToDate(eventEndTime <= eventStartTime ? addDaysIso(eventDate, 1) : eventDate);
+                    setRechargeToTime(eventEndTime);
+                  }}
+                >Soirée</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const day = rechargeFromDate || todayLocal();
+                    setRechargeFromDate(day);
+                    setRechargeFromTime("00:00");
+                    setRechargeToDate(day);
+                    setRechargeToTime("23:59");
+                  }}
+                >Journée</Button>
+              </div>
             </div>
-            <label class="flex flex-col gap-1 text-sm">Date des rechargements
-              <input type="date" lang="fr-FR" class="border bg-input px-3 py-2 text-base" value={rechargeDate} onInput={(event) => setRechargeDate(event.currentTarget.value)} />
-            </label>
-            <Button variant="outline" disabled={!rechargeDate} onClick={() => void exportRecharges()}><Download /> Exporter rechargements CSV</Button>
-            <p class="w-full text-xs text-muted-foreground">La date des rechargements est modifiable ci-dessus ; les heures sont celles de la soirée. Le mode de paiement est enregistré en local à chaque rechargement effectué sur cette Marco ; ceux faits sur une autre caisse apparaissent « Pas rechargé sur cette Marco ».</p>
+            <div class="flex flex-wrap items-end gap-3">
+              <label class="flex flex-col gap-1 text-sm">Du
+                <span class="flex gap-2">
+                  <input type="date" lang="fr-FR" class="border bg-input px-3 py-2 text-base" value={rechargeFromDate} onInput={(event) => setRechargeFromDate(event.currentTarget.value)} />
+                  <input type="time" class="border bg-input px-3 py-2 text-base" value={rechargeFromTime} onInput={(event) => setRechargeFromTime(event.currentTarget.value)} />
+                </span>
+              </label>
+              <label class="flex flex-col gap-1 text-sm">Au
+                <span class="flex gap-2">
+                  <input type="date" lang="fr-FR" class="border bg-input px-3 py-2 text-base" value={rechargeToDate} onInput={(event) => setRechargeToDate(event.currentTarget.value)} />
+                  <input type="time" class="border bg-input px-3 py-2 text-base" value={rechargeToTime} onInput={(event) => setRechargeToTime(event.currentTarget.value)} />
+                </span>
+              </label>
+              <Button variant="outline" disabled={!rechargeFromDate || !rechargeToDate} onClick={() => void exportRecharges()}><Download /> Exporter rechargements CSV</Button>
+            </div>
+            <p class="text-xs text-muted-foreground">Plage libre : choisissez les dates et heures de début et de fin. « Soirée » reprend la période de la compta ; « Journée » couvre 00h00–23h59. Le mode de paiement est enregistré en local à chaque rechargement effectué sur cette Marco ; ceux faits sur une autre caisse apparaissent « Pas rechargé sur cette Marco ».</p>
             {rechargeSummary && (
               <div class="flex w-full flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-sm">
                 <span>{rechargeSummary.count} rechargement(s) · total <strong>{rechargeSummary.total} €</strong></span>
@@ -900,6 +961,13 @@ function eventRange(eventDate: string, startTime = DEFAULT_START_TIME, endTime =
 function todayLocal() {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+function addDaysIso(date: string, days: number) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  const value = new Date(`${date}T12:00:00`);
+  value.setDate(value.getDate() + days);
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
 function formatDateFr(value: string) {

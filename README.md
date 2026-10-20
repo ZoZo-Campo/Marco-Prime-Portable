@@ -17,7 +17,7 @@ Marco-Prime-Portable/
 ├── marco-tablet/
 │   ├── marco-prime-frontend/   # Preact + TypeScript + Vite + Tailwind (UI)
 │   ├── marco-prime-backend/    # Node.js + Hono + Drizzle + MySQL (API REST)
-│   │   └── .env                # configuration (base MySQL, port API)
+│   │   └── .env                # configuration locale (non versionnée)
 │   ├── frontend-pwa/           # manifest.json, sw.js, icônes
 │   └── data/                   # catalog-selection.json (sélection locale du soir)
 ├── tablet-scripts/             # scripts + réglages Termux (voir son README.md)
@@ -68,7 +68,11 @@ Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 ### Routes principales (API, préfixe `/api/v1`)
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/system/status` | Santé du serveur |
+| GET | `/health` / `/ready` | Santé du serveur (hors `/api/v1`) |
+| GET | `/system/status` | Santé du serveur, base et Fouaille |
+| POST | `/system/env/status` | État masqué du `.env` (admin) |
+| POST | `/system/env/validate` | Vérifie un `.env` et teste MySQL (admin) |
+| POST | `/system/env` | Importe le `.env`, crée une sauvegarde et redémarre (admin) |
 | GET | `/member-promotions` | Promotions (filtre recherche) |
 | GET | `/member/:card_number` | Membre par n° de carte |
 | POST | `/members/search` | Recherche nom / prénom / promo / carte |
@@ -81,9 +85,16 @@ Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 
 **Compta réelle** : la période de la soirée se règle par date + heures de début
 et de fin (défaut 17 h → 23 h 59, fin le lendemain si l'heure de fin précède le
-début). Le préremplissage des recettes utilise cette période ; la date de
-l'export des rechargements reste modifiable (les heures sont celles de la
-soirée). Les dates sont affichées au format français `jj-mm-yyyy`.
+début). Le préremplissage des recettes utilise cette période. L'export des
+rechargements possède sa **propre plage libre date + heure** (« Du … au … »),
+avec les raccourcis « Soirée » (période de la compta) et « Journée »
+(00 h 00 → 23 h 59). Les dates sont affichées au format français `jj-mm-yyyy`.
+
+**Contrôle de cotisation** : la fiche membre expose `contributor` (colonne
+`members.contributor`). Si un membre scanné n'a pas cotisé, un encart rouge
+« Ce membre n'a pas cotisé » s'affiche et une boîte de dialogue demande
+« Voulez-vous vraiment servir ? ». « Non » efface la carte ; « Oui » autorise
+exceptionnellement la vente pour cette carte.
 
 Documentation API détaillée : `marco-tablet/marco-prime-backend/README.md`.
 
@@ -100,6 +111,27 @@ Documentation API détaillée : `marco-tablet/marco-prime-backend/README.md`.
 | `~/rebuild.sh` | Compile le backend **et** rebuild le frontend |
 | `~/.bashrc` / `~/.profile` | Relance le serveur à l'ouverture d'une session Termux |
 | `~/.shortcuts/relance.sh` | Raccourci Termux « Relance Marco » |
+
+> **Pas de mise à jour automatique depuis GitHub.** Au démarrage, `marco.sh` lance
+> uniquement le serveur et le watchdog sur le code déjà présent dans
+> `~/marco-tablet`. Aucun `git pull` n'est exécuté au boot.
+
+### Mettre à jour Marco
+
+La mise à jour est **manuelle**, depuis le Mac de développement :
+
+```bash
+# 1) publier les changements
+git push
+
+# 2) copier les sources sur la tablette (tar ou rsync), puis sur la tablette :
+sh ~/rebuild.sh              # compile le backend + rebuild le frontend
+sh ~/relance-marco.sh --force # redémarre le serveur
+```
+
+Recharger ensuite l'application (bouton « Recharger l'application » dans
+Configuration, ou relance de la PWA). Le service worker ne met rien en cache :
+les assets hachés sont servis dès le rechargement.
 
 ---
 

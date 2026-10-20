@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type z from "zod";
-import { RefreshCw, ScanLine } from "lucide-preact";
+import { RefreshCw, ScanLine, ShieldAlert } from "lucide-preact";
 import { useMember } from "../../../contexts/member-context";
 import { shopping } from "../../../contexts/shopping-context";
 import { cn } from "../../../utils/cn";
@@ -50,7 +50,7 @@ export function MemberCard() {
   if (loading) content = <MemberCardLoading />;
   else if (error) content = <MemberCardError retry={retry} clear={clear} />;
   else if (!data) content = <NoMemberCard inputLength={inputLength} />;
-  else content = <MemberCardLoaded member={data} clear={clear} />;
+  else content = <MemberCardLoaded key={data.id} member={data} clear={clear} />;
 
   return (
     <>
@@ -107,6 +107,8 @@ function MemberCardLoaded({
   member: z.infer<typeof memberSchema>;
   clear: () => void;
 }) {
+  const nonContributor = member.contributor === false;
+  const [showWarning, setShowWarning] = useState(nonContributor);
   const notEnoughMoney = hasInsufficientBalance(
     shopping.total.value,
     member.balance,
@@ -142,6 +144,12 @@ function MemberCardLoaded({
         </strong>
       </div>
 
+      {nonContributor && (
+        <p class="mt-2 rounded-xl border border-destructive/50 bg-destructive/15 px-3 py-2 text-sm font-bold text-destructive">
+          Ce membre n’a pas cotisé.
+        </p>
+      )}
+
       {member.isBirthday && (
         <div class="mt-2">
           <BirthdayBadge firstName={member.firstName} />
@@ -166,6 +174,57 @@ function MemberCardLoaded({
       >
         <RefreshCw class="size-4" /> Changer de membre
       </Button>
+
+      {showWarning && (
+        <div class="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4" role="presentation">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="non-contributor-title"
+            class="w-full max-w-xl rounded-2xl border-2 border-destructive bg-card p-6 shadow-2xl"
+          >
+            <div class="flex items-start gap-4">
+              <span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-destructive/20 text-destructive">
+                <ShieldAlert class="size-8" />
+              </span>
+              <div>
+                <h2 id="non-contributor-title" class="text-2xl font-extrabold text-destructive">
+                  Ce membre n’a pas cotisé
+                </h2>
+                <p class="mt-2 text-lg">
+                  Voulez-vous vraiment servir <strong>{member.firstName} {member.lastName}</strong> ?
+                </p>
+                <p class="mt-1 text-sm">
+                  Solde actuel : <strong>{formatEuro(member.balance)}</strong>
+                </p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                  La cotisation n’est pas enregistrée pour ce membre. Vous pouvez continuer exceptionnellement, ou annuler et changer de membre.
+                </p>
+              </div>
+            </div>
+            <div class="mt-6 flex flex-wrap justify-end gap-3">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  setShowWarning(false);
+                  shopping.reset();
+                  clear();
+                }}
+              >
+                Non, ne pas servir
+              </Button>
+              <Button
+                variant="destructive"
+                size="lg"
+                onClick={() => setShowWarning(false)}
+              >
+                Oui, servir quand même
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

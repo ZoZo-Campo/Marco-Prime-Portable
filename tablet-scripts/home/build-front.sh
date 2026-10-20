@@ -14,6 +14,14 @@ BACK="$ROOT/marco-prime-backend"
 PWA="$ROOT/frontend-pwa"
 LOG="$BACK/server.log"
 
+# Token API du backend : le frontend doit utiliser le meme si l'auth est active.
+if [ -f "$BACK/.env" ]; then
+  TOKEN=$(grep -m1 '^API_TOKEN=' "$BACK/.env" | cut -d= -f2- | tr -d '"' | tr -d "'")
+  if [ -n "$TOKEN" ]; then
+    export VITE_API_TOKEN="$TOKEN"
+  fi
+fi
+
 echo "[build-front] $(date) demarrage" >> "$LOG"
 
 # 1) Build du frontend

@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Server,
   ShieldAlert,
   ShoppingBasket,
   UsersRound,
@@ -31,13 +32,14 @@ import { StatisticsPanel } from "../components/features/config/statistics-panel"
 import { AccountingPanel } from "../components/features/config/accounting-panel";
 import { MembersPanel } from "../components/features/config/members-panel";
 import { FouailleProductsPanel } from "../components/features/config/fouaille-products-panel";
+import { SetupPanel } from "../components/features/config/setup-panel";
 import { QrScanButton } from "../components/features/member/qr-scan-button";
 import { Keypad } from "../components/features/recharge/keypad";
 
 export const CONFIG_ROUTE_URL = "/config";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
-type AdminSection = "catalog" | "statistics" | "accounting" | "members" | "fouaille-products";
+type AdminSection = "catalog" | "statistics" | "accounting" | "members" | "fouaille-products" | "setup";
 const KIOSK_CONTROL_URL = "http://127.0.0.1:3210";
 
 export function ConfigPage() {
@@ -375,22 +377,39 @@ function ConfigContent() {
         <Button variant={section === "members" ? "default" : "outline"} onClick={() => setSection("members")}>
           <UsersRound class="size-5" /> Membres
         </Button>
-        <span class="ml-auto shrink-0 text-sm text-muted-foreground">
-          {member.firstName} {member.lastName}
-        </span>
-        <Button class="shrink-0" variant="outline" onClick={() => window.location.reload()}>
-          <RefreshCw class="size-5" /> Recharger l’application
+        <span class="ml-auto" />
+        <Button
+          class="shrink-0"
+          variant="ghost"
+          size="sm"
+          title="Installation et configuration"
+          onClick={() => setSection("setup")}
+        >
+          <Server class="size-5" /> Installation
+        </Button>
+        <Button
+          class="shrink-0"
+          variant="outline"
+          size="icon"
+          title="Recharger l’application"
+          aria-label="Recharger l’application"
+          onClick={() => window.location.reload()}
+        >
+          <RefreshCw class="size-5" />
         </Button>
         {kioskControlAvailable && (
           <Button
             class="shrink-0"
             variant="destructive"
+            size="icon"
+            title="Fermer Marco"
+            aria-label="Fermer Marco"
             onClick={() => {
               setKioskExitError(null);
               setShowExitDialog(true);
             }}
           >
-            <Power class="size-5" /> Fermer Marco
+            <Power class="size-5" />
           </Button>
         )}
       </nav>
@@ -481,6 +500,15 @@ function ConfigContent() {
       <div class="flex flex-1 min-h-0 flex-col overflow-hidden">
         {adminNavigation}
         <AccountingPanel adminCardNumber={member.cardNumber} />
+      </div>
+    );
+  }
+
+  if (section === "setup") {
+    return (
+      <div class="flex flex-1 min-h-0 flex-col overflow-hidden">
+        {adminNavigation}
+        <SetupPanel adminCardNumber={member.cardNumber} />
       </div>
     );
   }

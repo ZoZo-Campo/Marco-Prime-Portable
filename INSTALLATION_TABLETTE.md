@@ -110,26 +110,59 @@ Le serveur écoute sur **`http://127.0.0.1:3001`** (`API_PORT=3001` dans le `.en
 
 ## 6. Configuration `.env` (backend)
 
-Le fichier `~/marco-tablet/marco-prime-backend/.env` doit contenir les valeurs fournies
-par l'administratrice. Ne jamais publier les identifiants réels dans Git :
+Le **seul** fichier de configuration est `~/marco-tablet/marco-prime-backend/.env`.
+Il est créé à partir du modèle versionné `.env.example` et ne doit **jamais** être
+commité dans Git.
+
+### A. Import depuis l'interface (recommandé)
+
+1. Préparer le fichier sur un ordinateur à partir de `.env.example` (voir ci-dessous).
+2. Sur la tablette : **Configuration → Installation → Importer un fichier .env**.
+3. Choisir le fichier, cliquer sur **Vérifier le fichier** (la connexion MySQL est
+   testée), puis confirmer **deux fois**.
+4. L'import **remplace** le `.env` existant (ou le crée s'il est absent), sauvegarde
+   l'ancien dans `.env.bak-<date>` et **redémarre Marco automatiquement**.
+
+> La tablette n'a **pas besoin d'être redémarrée en entier** : le serveur Marco
+> redémarre seul. Si l'écran ne revient pas après 60 secondes, redémarrer la tablette
+> (appui long sur Power → Redémarrer) ou lancer `sh ~/relance-marco.sh --force` dans
+> Termux.
+
+### B. Manuellement
+
+```bash
+cd ~/marco-tablet/marco-prime-backend
+cp .env.example .env
+nano .env
+```
+
+Contenu attendu (remplacer les valeurs en majuscules) :
 
 ```env
+API_PORT=3001
 API_AUTH_ENABLED=false
 API_TOKEN=
-DATABASE_URL=mysql://UTILISATEUR:MOT_DE_PASSE@HOTE:PORT/NOM_DE_LA_BASE
-FOUAILLE_API_URL=https://fouaille.bde-tps.fr/api/product
+DATABASE_URL="mysql://UTILISATEUR:MOT_DE_PASSE@HOTE:3307/NOM_DE_LA_BASE"
+NODE_ENV=production
+FRONTEND_URL=http://127.0.0.1:3001
+FOUAILLE_API_URL="https://fouaille.bde-tps.fr/api/product"
 FOUAILLE_SYNC_ENABLED=false
 FOUAILLE_SYNC_INTERVAL_MS=300000
 MARCO_DATA_DIR=/data/data/com.termux/files/home/marco-tablet/data
-API_PORT=3001
 MARCO_HOST_PORT=3001
-NODE_ENV=production
-FRONTEND_URL=http://127.0.0.1:3001
 ```
 
 > La base est **MySQL distante** (`bde.its-tps.fr:3307`). La tablette doit pouvoir l'atteindre
 > sur le réseau. Seule la **sélection catalogue** (`marco-tablet/data/catalog-selection.json`)
 > est locale. Le frontend n'a pas besoin de `.env` (il appelle `/api/v1` en relatif).
+> Si `API_AUTH_ENABLED=true`, le frontend doit être reconstruit avec le même
+> `VITE_API_TOKEN` (`sh ~/build-front.sh`).
+>
+> **Sécurité** : le serveur n'écoute que sur `127.0.0.1`, donc l'API n'est pas
+> accessible depuis le réseau. L'import `.env` exige la carte administrateur,
+> n'affiche jamais le mot de passe dans l'état de configuration, écrit le fichier
+> en `0600` et conserve une sauvegarde `.env.bak-<date>`. Le contenu collé reste
+> en mémoire dans l'écran d'import et est effacé après un import réussi.
 
 ---
 
@@ -175,6 +208,11 @@ Connexion : `ssh marco`.
 3. `~/.termux/termux.properties` contient `allow-external-apps=true` (requis pour la page
    de relance et le raccourci). Relancer l'appli Termux après modification.
 
+> **Mise à jour de Marco** : le boot ne fait **aucun `git pull`**. Il lance le code
+> déjà présent dans `~/marco-tablet`. Pour mettre à jour, copier les sources depuis
+> le Mac, puis sur la tablette : `sh ~/rebuild.sh` et
+> `sh ~/relance-marco.sh --force`. Recharger ensuite l'application.
+
 ---
 
 ## 9. Mode kiosque / PWA
@@ -197,7 +235,8 @@ Connexion : `ssh marco`.
 pgrep -f "node dist/index.js"        # serveur actif ?
 pgrep -f watchdog.sh                 # watchdog actif ?
 pgrep -x sshd                        # sshd actif ?
-curl -s http://127.0.0.1:3001/api/v1/system/status   # réponse de l'API
+curl -s http://127.0.0.1:3001/health                     # serveur vivant
+curl -s http://127.0.0.1:3001/api/v1/system/status       # base + Fouaille
 ```
 
 ---
@@ -211,6 +250,9 @@ curl -s http://127.0.0.1:3001/api/v1/system/status   # réponse de l'API
 | Frontend pas à jour | `sh ~/build-front.sh` puis recharger l'app |
 | Backend modifié | `sh ~/rebuild.sh` puis `sh ~/relance-marco.sh --force` |
 | `cp ... public/: No such file` | `build-front.sh` crée désormais `public/` automatiquement |
+| Import `.env` : « Connexion MySQL impossible » | Vérifier le réseau, puis l'utilisateur, le mot de passe et le port `3307` dans `DATABASE_URL`. |
+| Marco ne revient pas après l'import `.env` | `sh ~/relance-marco.sh --force`, sinon redémarrer la tablette. |
+| Écran bloqué après un import avec `API_AUTH_ENABLED=true` | `sh ~/build-front.sh` (le token `VITE_API_TOKEN` est repris du `.env`), puis `sh ~/relance-marco.sh --force`. |
 | SSH « permission denied » | Vérifier `~/.ssh/authorized_keys` (600), `~/.ssh` (700), `~` (700) |
 | `adb shell` bloqué | `adb kill-server && adb start-server` |
 | Capture d'écran | `adb shell screencap -p /sdcard/shot.png` puis `adb pull /sdcard/shot.png` |

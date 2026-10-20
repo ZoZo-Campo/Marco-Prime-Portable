@@ -30,4 +30,11 @@ cd <dossier>/tablet-scripts && sh install.sh
 sh setup-ssh.sh "ssh-ed25519 AAAA...lenzocampofranco"
 ```
 
+`build-front.sh` reprend automatiquement `API_TOKEN` du `.env` backend pour le
+build (`VITE_API_TOKEN`), afin que le frontend utilise le même token si
+l'authentification est activée.
+
+Le boot ne fait **aucun `git pull`** : les mises à jour sont copiées depuis le Mac
+puis appliquées avec `sh ~/rebuild.sh` et `sh ~/relance-marco.sh --force`.
+
 Voir **../INSTALLATION_TABLETTE.md** pour la procédure complète.

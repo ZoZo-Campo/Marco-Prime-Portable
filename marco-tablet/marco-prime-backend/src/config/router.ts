@@ -35,6 +35,11 @@ import {
   adminProductPriceSchema,
   adminReadSchema,
 } from "../validators/admin-management.validator.js";
+import {
+  envAdminSchema,
+  envImportSchema,
+  envValidateSchema,
+} from "../validators/env.validator.js";
 
 const memberController = new MemberController();
 const productController = new ProductController();
@@ -49,6 +54,15 @@ const adminManagement = new AdminManagementController();
 
 const router = new Hono()
   .get("/system/status", (c) => systemController.getStatus(c))
+  .post("/system/env/status", zValidator("json", envAdminSchema), (c) =>
+    systemController.getEnv(c),
+  )
+  .post("/system/env/validate", zValidator("json", envValidateSchema), (c) =>
+    systemController.validateEnv(c),
+  )
+  .post("/system/env", zValidator("json", envImportSchema), (c) =>
+    systemController.importEnv(c),
+  )
   .get(
     "/member/:card_number",
     zValidator("param", cardNumberParamSchema),

@@ -33,19 +33,31 @@ cp .env.example .env
 
 ## Configuration
 
-Créer un fichier `.env` à la racine du projet:
+Créer le fichier `.env` à la racine du projet à partir du modèle versionné :
+
+```bash
+cp .env.example .env
+```
+
+Le modèle `.env.example` contient toutes les clés et des commentaires. Le `.env`
+réel ne doit jamais être commité. Sur la tablette, il peut aussi être importé
+depuis l'interface : **Configuration → Installation → Importer un fichier .env**
+(vérification MySQL, double confirmation, sauvegarde `.env.bak-<date>`, puis
+redémarrage automatique du serveur). Le serveur écoute uniquement sur
+`127.0.0.1` : l'API n'est pas exposée sur le réseau de la tablette.
 
 ```env
-# API
-API_PORT=3000
-API_TOKEN=your-secret-token
-
-# Database
-DATABASE_URL=mysql://user:password@localhost:3306/database_name
-
-# Environment
-NODE_ENV=development
-TZ=Europe/Paris
+API_PORT=3001
+API_AUTH_ENABLED=false
+API_TOKEN=
+DATABASE_URL="mysql://user:password@host:3307/database_name"
+NODE_ENV=production
+FRONTEND_URL=http://127.0.0.1:3001
+FOUAILLE_API_URL="https://fouaille.bde-tps.fr/api/product"
+FOUAILLE_SYNC_ENABLED=false
+FOUAILLE_SYNC_INTERVAL_MS=300000
+MARCO_DATA_DIR=/data/data/com.termux/files/home/marco-tablet/data
+MARCO_HOST_PORT=3001
 ```
 
 ## Scripts disponibles
@@ -104,8 +116,13 @@ Une documentation Swagger UI interactive est disponible une fois le serveur dém
 
 ## Endpoints principaux
 
-### Santé
-- `GET /health` - Vérifier l'état de l'API
+### Santé et configuration
+- `GET /health` - Vérifier que le serveur répond
+- `GET /ready` - Vérifier aussi la connexion MySQL
+- `GET /api/v1/system/status` - État du serveur, de la base et de l'API Fouaille
+- `POST /api/v1/system/env/status` - Lire l'état masqué du `.env` (administrateur)
+- `POST /api/v1/system/env/validate` - Valider un `.env` et tester MySQL (administrateur)
+- `POST /api/v1/system/env` - Importer le `.env`, créer une sauvegarde et redémarrer (administrateur)
 
 ### Membres
 - `GET /api/v1/member/:card_number` - Récupérer un membre par numéro de carte
@@ -114,6 +131,11 @@ Une documentation Swagger UI interactive est disponible une fois le serveur dém
 - `POST /api/v1/admin/members/search` - Rechercher les membres, avec ou sans badge (administrateur)
 - `POST /api/v1/admin/members` - Créer un membre Fouaille avec solde initial nul (administrateur)
 - `PUT /api/v1/admin/members/badge` - Attribuer ou remplacer son badge sans toucher au solde ni à l’historique (administrateur)
+
+Les réponses membre incluent `contributor` (colonne `members.contributor`). Dans
+l’écran d’achat, un membre non cotisant déclenche un encart rouge et une
+confirmation « Voulez-vous vraiment servir ? » ; « Non » efface la carte,
+« Oui » autorise exceptionnellement la vente.
 
 Dans les écrans d’achat et de rechargement, **Rechercher sans carte** ouvre un
 clavier tactile AZERTY intégré. Une carte administrateur doit d’abord autoriser
@@ -185,9 +207,11 @@ l’heure de début et l’heure de fin, conservées dans `accounting.json`
 (`eventStartTime` / `eventEndTime`, par défaut 17 h → 23 h 59 ; si la fin est
 avant le début, elle tombe le lendemain). **Préremplir depuis les ventes**
 récupère les recettes Marco sur cette période, tout en laissant chaque montant
-modifiable. L’export des rechargements porte sur la même plage horaire, avec
-une date modifiable dans l’écran. Les produits actuellement disponibles sont
-affichés avant les anciens produits ou produits hors vente.
+modifiable. L’export des rechargements possède sa **propre plage date + heure**
+(`from` / `to`), avec les raccourcis « Soirée » (période de la compta) et
+« Journée » (00 h 00 → 23 h 59). L’export complet, lui, filtre les ventes **et**
+les rechargements sur la période de la soirée. Les produits actuellement
+disponibles sont affichés avant les anciens produits ou produits hors vente.
 
 **Nouvelle soirée** remet à zéro la date, les litres et les recettes, avec le
 choix de conserver ou non les produits habituels. Les derniers prix d’achat au

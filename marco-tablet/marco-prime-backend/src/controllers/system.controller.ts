@@ -1,6 +1,14 @@
 import type { Context } from "hono";
 import { sql } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
 import { db } from "../config/database.js";
+import { auditEvent } from "../config/logger.js";
+import { MemberRepository } from "../repositories/member.repository.js";
+import {
+  importEnv as importEnvFile,
+  readEnvStatus,
+  validateEnv as validateEnvContent,
+} from "../services/env.service.js";
 
 const CHECK_TIMEOUT_MS = 2_500;
 const CACHE_DURATION_MS = 15_000;
@@ -9,6 +17,8 @@ type CheckResult = { available: boolean; latencyMs: number };
 let cachedFouaille: { expiresAt: number; result: CheckResult } | null = null;
 
 export class SystemController {
+  private members = new MemberRepository();
+
   async getStatus(c: Context) {
     const [database, fouaille] = await Promise.all([
       timedCheck(async () => {
@@ -18,6 +28,47 @@ export class SystemController {
     ]);
 
     return c.json({ backend: { available: true }, database, fouaille });
+  }
+
+  async getEnv(c: Context) {
+    const request = c.req.valid("json" as never) as { adminCardNumber: number };
+    await this.requireAdmin(request.adminCardNumber);
+    return c.json(await readEnvStatus());
+  }
+
+  async validateEnv(c: Context) {
+    const request = c.req.valid("json" as never) as {
+      adminCardNumber: number;
+      content: string;
+    };
+    await this.requireAdmin(request.adminCardNumber);
+    return c.json(await validateEnvContent(request.content));
+  }
+
+  async importEnv(c: Context) {
+    const request = c.req.valid("json" as never) as {
+      adminCardNumber: number;
+      content: string;
+      restart: boolean;
+    };
+    const admin = await this.requireAdmin(request.adminCardNumber);
+    const result = await importEnvFile(request.content, request.restart);
+    if (result.imported) {
+      auditEvent("system.env.imported", {
+        adminMemberId: admin.id,
+        restartScheduled: result.restartScheduled,
+        backup: result.backup,
+      });
+    }
+    return c.json(result, result.imported ? 200 : 400);
+  }
+
+  private async requireAdmin(cardNumber: number) {
+    const member = await this.members.findFullByCardNumber(cardNumber);
+    if (!member?.admin) {
+      throw new HTTPException(403, { message: "An administrator card is required" });
+    }
+    return member;
   }
 }
 
