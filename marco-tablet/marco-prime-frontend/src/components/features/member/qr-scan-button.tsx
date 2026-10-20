@@ -53,8 +53,15 @@ export function QrScanButton({
     window.setTimeout(() => {
       setDetected(false);
       onSubmit(cardNumber);
-    }, 280);
+    }, 50);
   });
+
+  // Pré-ouvre la caméra dès l'affichage de l'écran pour un premier scan
+  // instantané (le flux reste chaud ensuite, voir useQrScanner).
+  useEffect(() => {
+    scanner.warm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!scanner.active) return;
@@ -83,61 +90,65 @@ export function QrScanButton({
         <p class="mt-2 text-center text-sm text-destructive">{scanner.error}</p>
       )}
 
-      {scanner.active && (
-        <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
-          <Card class="w-full max-w-xl gap-4 overflow-hidden py-5">
-            <div class="flex items-center justify-between gap-4 px-5">
-              <h2 class="flex items-center gap-2 text-xl font-bold">
-                <QrCode class="size-6 text-primary" />
-                Scanner un QR code
-              </h2>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label="Fermer"
-                onClick={scanner.stop}
-              >
-                <X />
-              </Button>
-            </div>
+      <div
+        aria-hidden={!scanner.active}
+        class={cn(
+          "fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm transition-opacity duration-150",
+          !scanner.active && "pointer-events-none opacity-0",
+        )}
+      >
+        <Card class="w-full max-w-xl gap-4 overflow-hidden py-5">
+          <div class="flex items-center justify-between gap-4 px-5">
+            <h2 class="flex items-center gap-2 text-xl font-bold">
+              <QrCode class="size-6 text-primary" />
+              Scanner un QR code
+            </h2>
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Fermer"
+              onClick={scanner.stop}
+            >
+              <X />
+            </Button>
+          </div>
 
-            <div class="px-5">
-              <div class="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-3xl border-2 border-primary/40 bg-black shadow-inner">
-                <video
-                  ref={scanner.videoRef}
-                  class="h-full w-full object-cover"
-                  autoPlay
-                  playsInline
-                  muted
-                />
+          <div class="px-5">
+            <div class="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-3xl border-2 border-primary/40 bg-black shadow-inner">
+              <video
+                ref={scanner.videoRef}
+                class="h-full w-full object-cover"
+                autoPlay
+                playsInline
+                muted
+              />
 
-                <div class="pointer-events-none absolute inset-0">
-                  <span class="absolute left-3 top-3 size-9 rounded-tl-2xl border-l-4 border-t-4 border-primary" />
-                  <span class="absolute right-3 top-3 size-9 rounded-tr-2xl border-r-4 border-t-4 border-primary" />
-                  <span class="absolute bottom-3 left-3 size-9 rounded-bl-2xl border-b-4 border-l-4 border-primary" />
-                  <span class="absolute bottom-3 right-3 size-9 rounded-br-2xl border-b-4 border-r-4 border-primary" />
-                  <span class="qr-scanline absolute inset-x-8 top-1/3 h-0.5 rounded-full bg-primary shadow-[0_0_14px_3px_var(--color-primary)]" />
-                </div>
-
-                <div
-                  class={cn(
-                    "pointer-events-none absolute inset-0 flex items-center justify-center bg-green-500/30 transition-opacity duration-200",
-                    detected ? "opacity-100" : "opacity-0",
-                  )}
-                >
-                  <span class="flex size-16 items-center justify-center rounded-full bg-green-500 text-white shadow-lg">
-                    <Check class="size-9" />
-                  </span>
-                </div>
+              <div class="pointer-events-none absolute inset-0">
+                <span class="absolute left-3 top-3 size-9 rounded-tl-2xl border-l-4 border-t-4 border-primary" />
+                <span class="absolute right-3 top-3 size-9 rounded-tr-2xl border-r-4 border-t-4 border-primary" />
+                <span class="absolute bottom-3 left-3 size-9 rounded-bl-2xl border-b-4 border-l-4 border-primary" />
+                <span class="absolute bottom-3 right-3 size-9 rounded-br-2xl border-b-4 border-r-4 border-primary" />
+                <span class="qr-scanline absolute inset-x-8 top-1/3 h-0.5 rounded-full bg-primary shadow-[0_0_14px_3px_var(--color-primary)]" />
               </div>
 
-              <p class="mt-4 text-center text-sm text-muted-foreground">
-                Présentez le QR code de la personne devant la caméra.
-              </p>
+              <div
+                class={cn(
+                  "pointer-events-none absolute inset-0 flex items-center justify-center bg-green-500/30 transition-opacity duration-200",
+                  detected ? "opacity-100" : "opacity-0",
+                )}
+              >
+                <span class="flex size-16 items-center justify-center rounded-full bg-green-500 text-white shadow-lg">
+                  <Check class="size-9" />
+                </span>
+              </div>
             </div>
-          </Card>
-        </div>
-      )}
+
+            <p class="mt-4 text-center text-sm text-muted-foreground">
+              Présentez le QR code de la personne devant la caméra.
+            </p>
+          </div>
+        </Card>
+      </div>
     </>
   );
 }

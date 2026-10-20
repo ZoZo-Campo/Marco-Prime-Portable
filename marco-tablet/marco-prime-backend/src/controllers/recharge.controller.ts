@@ -121,7 +121,13 @@ export class RechargeController {
     // because the local payment-method annotation could not be saved.
     let paymentMethodRecorded = true;
     try {
-      await recordRechargeMethod(recharge.orderId, paymentMethod);
+      await recordRechargeMethod(recharge.orderId, paymentMethod, {
+        cardNumber: member.cardNumber ?? undefined,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        amount: rechargeAmount.toFixed(2),
+        orderDate: new Date(recharge.orderDate).toISOString(),
+      });
     } catch (error) {
       paymentMethodRecorded = false;
       console.error("Recharge enregistrée, mode de paiement non sauvegardé", error);

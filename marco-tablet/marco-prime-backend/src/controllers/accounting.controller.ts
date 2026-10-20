@@ -88,6 +88,53 @@ export class AccountingController {
       ...recharges.map((recharge) => recharge.id),
     ]);
 
+    // Registre local fusionné avec la base : le mode de paiement n'existe que
+    // pour les rechargements faits sur cette Marco. Les autres (réalisés sur une
+    // autre caisse) restent sans mode : ils seront signalés « Pas rechargé sur
+    // cette Marco » côté interface.
+    const rechargeList = recharges
+      .filter((recharge) => !refundIds.has(recharge.id))
+      .map((recharge) => ({
+        orderId: recharge.id,
+        memberId: recharge.memberId,
+        memberFirstName: recharge.memberFirstName,
+        memberLastName: recharge.memberLastName,
+        amount: recharge.price,
+        date: recharge.date,
+        paymentMethod: rechargeMethods[String(recharge.id)] ?? null,
+      }));
+
+    const rechargeTotals = rechargeList.reduce(
+      (summary, recharge) => {
+        const amount = Math.abs(Number(recharge.amount));
+        summary.total += amount;
+        summary.count += 1;
+        if (recharge.paymentMethod === "card") {
+          summary.card += amount;
+          summary.cardCount += 1;
+        } else if (recharge.paymentMethod === "cash") {
+          summary.cash += amount;
+          summary.cashCount += 1;
+        } else {
+          summary.unknown += amount;
+          summary.unknownCount += 1;
+        }
+        return summary;
+      },
+      { total: 0, card: 0, cash: 0, unknown: 0, count: 0, cardCount: 0, cashCount: 0, unknownCount: 0 },
+    );
+
+    const rechargeSummary = {
+      total: rechargeTotals.total.toFixed(2),
+      card: rechargeTotals.card.toFixed(2),
+      cash: rechargeTotals.cash.toFixed(2),
+      unknown: rechargeTotals.unknown.toFixed(2),
+      count: rechargeTotals.count,
+      cardCount: rechargeTotals.cardCount,
+      cashCount: rechargeTotals.cashCount,
+      unknownCount: rechargeTotals.unknownCount,
+    };
+
     return c.json({
       generatedAt: new Date().toISOString(),
       range: { from: request.from, to: request.to },
@@ -107,17 +154,8 @@ export class AccountingController {
           date: sale.date,
           status: replacementIds.has(sale.id) ? "replacement" : "sale",
         })),
-      recharges: recharges
-        .filter((recharge) => !refundIds.has(recharge.id))
-        .map((recharge) => ({
-          orderId: recharge.id,
-          memberId: recharge.memberId,
-          memberFirstName: recharge.memberFirstName,
-          memberLastName: recharge.memberLastName,
-          amount: recharge.price,
-          date: recharge.date,
-          paymentMethod: rechargeMethods[String(recharge.id)] ?? null,
-        })),
+      recharges: rechargeList,
+      rechargeSummary,
       corrections: corrections
         .filter((correction) =>
           rangeOrderIds.has(correction.originalOrderId) ||

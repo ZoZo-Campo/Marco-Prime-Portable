@@ -82,6 +82,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   const [eventDate, setEventDate] = useState("");
   const [rechargeExportFrom, setRechargeExportFrom] = useState(todayLocal());
   const [rechargeExportTo, setRechargeExportTo] = useState(todayLocal());
+  const [rechargeSummary, setRechargeSummary] = useState<AccountingExport["rechargeSummary"] | null>(null);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -415,9 +416,10 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const exported = accountingExportSchema.parse(await response.json());
+      setRechargeSummary(exported.rechargeSummary ?? null);
       const csv = tableCsv(
         ["Transaction", "Date", "Membre", "Montant", "Paiement reçu"],
-        exported.recharges.map((recharge) => [recharge.orderId, formatCsvDate(recharge.date), memberName(recharge), csvNumber(Number(recharge.amount), 2), recharge.paymentMethod === "card" ? "Carte bancaire" : recharge.paymentMethod === "cash" ? "Espèces" : "Non renseigné"]),
+        exported.recharges.map((recharge) => [recharge.orderId, formatCsvDate(recharge.date), memberName(recharge), csvNumber(Number(recharge.amount), 2), paymentMethodLabel(recharge.paymentMethod)]),
       );
       downloadBlob(`rechargements-${rechargeExportFrom}-${rechargeExportTo}.csv`, csvFile("rechargements.csv", csv).blob);
       setMessage(`${exported.recharges.length} rechargement(s) exporté(s).`);
@@ -607,7 +609,15 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
               <input type="date" class="border bg-input px-3 py-2 text-base" value={rechargeExportTo} onInput={(event) => setRechargeExportTo(event.currentTarget.value)} />
             </label>
             <Button variant="outline" onClick={() => void exportRecharges()}><Download /> Exporter rechargements CSV</Button>
-            <p class="w-full text-xs text-muted-foreground">Les modes de paiement antérieurs ou enregistrés sur une autre Marco apparaissent « Non renseigné ».</p>
+            <p class="w-full text-xs text-muted-foreground">Le mode de paiement est enregistré en local à chaque rechargement effectué sur cette Marco. Les rechargements faits sur une autre caisse apparaissent « Pas rechargé sur cette Marco ».</p>
+            {rechargeSummary && (
+              <div class="flex w-full flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-sm">
+                <span>{rechargeSummary.count} rechargement(s) · total <strong>{rechargeSummary.total} €</strong></span>
+                <span>Carte bancaire : <strong>{rechargeSummary.card} €</strong> ({rechargeSummary.cardCount})</span>
+                <span>Espèces : <strong>{rechargeSummary.cash} €</strong> ({rechargeSummary.cashCount})</span>
+                <span class="text-muted-foreground">Pas rechargé sur cette Marco : <strong>{rechargeSummary.unknown} €</strong> ({rechargeSummary.unknownCount})</span>
+              </div>
+            )}
           </Card>
           {message && <p class="text-center text-lg">{message}</p>}
         </div>
@@ -861,7 +871,7 @@ function createExportFiles(exported: AccountingExport, products: ProductCost[]) 
   );
   const rechargesCsv = tableCsv(
     ["Transaction", "Date", "Membre", "Montant", "Paiement reçu"],
-    exported.recharges.map((recharge) => [recharge.orderId, formatCsvDate(recharge.date), memberName(recharge), csvNumber(Number(recharge.amount), 2), recharge.paymentMethod === "card" ? "Carte bancaire" : recharge.paymentMethod === "cash" ? "Espèces" : "Non renseigné"]),
+    exported.recharges.map((recharge) => [recharge.orderId, formatCsvDate(recharge.date), memberName(recharge), csvNumber(Number(recharge.amount), 2), paymentMethodLabel(recharge.paymentMethod)]),
   );
   const correctionsCsv = tableCsv(
     ["Transaction d’origine", "Date correction", "Statut", "Produit initial", "Quantité initiale", "Produit corrigé", "Quantité corrigée", "Remboursé", "Redébité", "Variation solde", "Raison", "Administrateur"],
@@ -925,6 +935,11 @@ function downloadBlob(name: string, blob: Blob) {
   link.download = name;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+function paymentMethodLabel(method: "card" | "cash" | null) {
+  if (method === "card") return "Carte bancaire";
+  if (method === "cash") return "Espèces";
+  return "Pas rechargé sur cette Marco";
 }
 function memberName(member: { memberFirstName: string | null; memberLastName: string | null; memberId: number | null }) {
   const name = [member.memberFirstName, member.memberLastName].filter(Boolean).join(" ");

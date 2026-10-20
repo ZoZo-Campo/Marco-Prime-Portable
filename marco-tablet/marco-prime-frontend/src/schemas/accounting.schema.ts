@@ -62,6 +62,17 @@ const exportedRechargeSchema = z.object({
   paymentMethod: z.enum(["card", "cash"]).nullable(),
 });
 
+const rechargeSummarySchema = z.object({
+  total: moneyStringSchema,
+  card: moneyStringSchema,
+  cash: moneyStringSchema,
+  unknown: moneyStringSchema,
+  count: z.number().int().nonnegative(),
+  cardCount: z.number().int().nonnegative(),
+  cashCount: z.number().int().nonnegative(),
+  unknownCount: z.number().int().nonnegative(),
+});
+
 const exportedCorrectionSchema = z.object({
   status: z.enum(["pending", "completed"]),
   originalOrderId: z.number().int().positive(),
@@ -93,6 +104,7 @@ export const accountingExportSchema = z.object({
   accounting: accountingSchema,
   sales: z.array(exportedSaleSchema),
   recharges: z.array(exportedRechargeSchema),
+  rechargeSummary: rechargeSummarySchema.optional(),
   corrections: z.array(exportedCorrectionSchema),
 });
 
