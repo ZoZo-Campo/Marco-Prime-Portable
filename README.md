@@ -80,9 +80,10 @@ Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 | POST | `/accounting/export` | Export complet d’une soirée (ventes + recharges + compta) |
 
 **Compta réelle** : la période de la soirée se règle par date + heures de début
-et de fin (défaut 17 h → minuit, fin le lendemain si l'heure de fin précède le
-début). Le préremplissage des recettes et l'export des rechargements utilisent
-exactement cette même période.
+et de fin (défaut 17 h → 23 h 59, fin le lendemain si l'heure de fin précède le
+début). Le préremplissage des recettes utilise cette période ; la date de
+l'export des rechargements reste modifiable (les heures sont celles de la
+soirée). Les dates sont affichées au format français `jj-mm-yyyy`.
 
 Documentation API détaillée : `marco-tablet/marco-prime-backend/README.md`.
 

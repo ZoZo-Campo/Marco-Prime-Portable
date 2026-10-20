@@ -52,7 +52,7 @@ type DialogName = "new-event" | "close-event" | null;
 // Type Fouaille des bouteilles : comptées en unités dans la compta, pas en litres.
 const BOTTLE_TYPE_ID = 9;
 const DEFAULT_START_TIME = "17:00";
-const DEFAULT_END_TIME = "00:00";
+const DEFAULT_END_TIME = "23:59";
 
 interface AccountingDraft {
   status: AccountingStatus;
@@ -86,6 +86,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   const [eventDate, setEventDate] = useState("");
   const [eventStartTime, setEventStartTime] = useState(DEFAULT_START_TIME);
   const [eventEndTime, setEventEndTime] = useState(DEFAULT_END_TIME);
+  const [rechargeDate, setRechargeDate] = useState(todayLocal());
   const [rechargeSummary, setRechargeSummary] = useState<AccountingExport["rechargeSummary"] | null>(null);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [productSearch, setProductSearch] = useState("");
@@ -156,6 +157,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       setEventDate(value.eventDate);
       setEventStartTime(value.eventStartTime);
       setEventEndTime(value.eventEndTime);
+      setRechargeDate(value.eventDate);
       setRows(editableRows);
       lastSavedSignature.current = signature(nextDraft);
       loaded.current = true;
@@ -355,6 +357,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
     setEventDate(nextDraft.eventDate);
     setEventStartTime(nextDraft.eventStartTime);
     setEventEndTime(nextDraft.eventEndTime);
+    setRechargeDate(nextDraft.eventDate);
     setRows(nextDraft.rows);
     setLastPrefillAt(null);
     setLastExportSignature(null);
@@ -410,7 +413,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       setLastExportSignature(draftSignature);
       setMessage(directoryPicker
         ? "Export complet enregistré : 4 CSV et une sauvegarde JSON."
-        : `Export enregistré dans les fichiers de la tablette : ${files.length} fichiers datés du ${eventDate} dans le dossier Téléchargements.`);
+        : `Export enregistré dans les fichiers de la tablette : ${files.length} fichiers datés du ${formatDateFr(eventDate)} dans le dossier Téléchargements.`);
       return true;
     } catch {
       setMessage("Impossible de créer l’export complet de la soirée.");
@@ -419,8 +422,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   };
 
   const exportRecharges = async () => {
-    if (!eventDate) {
-      setMessage("Choisissez d’abord la date de la soirée.");
+    if (!rechargeDate) {
+      setMessage("Choisissez d’abord la date des rechargements.");
       return;
     }
     try {
@@ -429,7 +432,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         headers: apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           adminCardNumber,
-          ...eventRange(eventDate, eventStartTime, eventEndTime),
+          ...eventRange(rechargeDate, eventStartTime, eventEndTime),
         }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -439,8 +442,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         ["Transaction", "Date", "Membre", "Montant", "Paiement reçu"],
         exported.recharges.map((recharge) => [recharge.orderId, formatCsvDate(recharge.date), memberName(recharge), csvNumber(Number(recharge.amount), 2), paymentMethodLabel(recharge.paymentMethod)]),
       );
-      downloadBlob(`rechargements-${eventDate}.csv`, csvFile("rechargements.csv", csv).blob);
-      setMessage(`${exported.recharges.length} rechargement(s) exporté(s) sur la période ${eventStartTime}–${eventEndTime}.`);
+      downloadBlob(`rechargements-${formatDateFr(rechargeDate)}.csv`, csvFile("rechargements.csv", csv).blob);
+      setMessage(`${exported.recharges.length} rechargement(s) exporté(s) le ${formatDateFr(rechargeDate)} sur la période ${eventStartTime}–${eventEndTime}.`);
     } catch (error) {
       setMessage(`Export des rechargements impossible : ${error instanceof Error ? error.message : "erreur inconnue"}`);
     }
@@ -499,10 +502,17 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
             Date
             <input
               type="date"
+              lang="fr-FR"
               class="border bg-input px-3 py-2 text-base disabled:opacity-60"
               value={eventDate}
               disabled={isClosed}
-              onInput={(event) => { setEventDate(event.currentTarget.value); setLastPrefillAt(null); setMessage(null); }}
+              onInput={(event) => {
+                const value = event.currentTarget.value;
+                setEventDate(value);
+                setRechargeDate(value);
+                setLastPrefillAt(null);
+                setMessage(null);
+              }}
             />
           </label>
           <label class="flex flex-col gap-1 text-sm">
@@ -533,7 +543,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
               <Sparkles /> Préremplir depuis les ventes
             </Button>
             <p class="text-sm text-muted-foreground">
-              Période utilisée : {eventDate || "jour choisi"} de {eventStartTime} à {eventEndTime}
+              Période utilisée : {eventDate ? formatDateFr(eventDate) : "jour choisi"} de {eventStartTime} à {eventEndTime}
               {endIsNextDay && " (fin le lendemain)"}. Les valeurs restent modifiables pour refléter les pertes et écarts réels.
               {lastPrefillAt && ` Dernier préremplissage : ${new Date(lastPrefillAt).toLocaleTimeString("fr-FR")}.`}
             </p>
@@ -641,17 +651,20 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           {rows.length === 0 && <p class="p-8 text-center text-muted-foreground">Ajoutez un produit ou préremplissez les ventes pour commencer.</p>}
         </Card>
 
-          <Card class="flex flex-wrap items-end gap-3 p-4">
+          <Card class="flex flex-row flex-wrap items-end gap-3 p-4">
             <div class="flex flex-col gap-1 text-sm">
               <span class="font-medium">Rechargements de la soirée</span>
               <span class="text-muted-foreground">
-                {eventDate
-                  ? `${eventDate} · ${eventStartTime} → ${eventEndTime}${endIsNextDay ? " (lendemain)" : ""}`
-                  : "Choisissez la date et les heures de la soirée ci-dessus."}
+                {rechargeDate
+                  ? `${formatDateFr(rechargeDate)} · ${eventStartTime} → ${eventEndTime}${endIsNextDay ? " (lendemain)" : ""}`
+                  : "Choisissez une date ci-dessous."}
               </span>
             </div>
-            <Button variant="outline" disabled={!eventDate} onClick={() => void exportRecharges()}><Download /> Exporter rechargements CSV</Button>
-            <p class="w-full text-xs text-muted-foreground">Les rechargements utilisent la même période que la soirée. Le mode de paiement est enregistré en local à chaque rechargement effectué sur cette Marco ; ceux faits sur une autre caisse apparaissent « Pas rechargé sur cette Marco ».</p>
+            <label class="flex flex-col gap-1 text-sm">Date des rechargements
+              <input type="date" lang="fr-FR" class="border bg-input px-3 py-2 text-base" value={rechargeDate} onInput={(event) => setRechargeDate(event.currentTarget.value)} />
+            </label>
+            <Button variant="outline" disabled={!rechargeDate} onClick={() => void exportRecharges()}><Download /> Exporter rechargements CSV</Button>
+            <p class="w-full text-xs text-muted-foreground">La date des rechargements est modifiable ci-dessus ; les heures sont celles de la soirée. Le mode de paiement est enregistré en local à chaque rechargement effectué sur cette Marco ; ceux faits sur une autre caisse apparaissent « Pas rechargé sur cette Marco ».</p>
             {rechargeSummary && (
               <div class="flex w-full flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-sm">
                 <span>{rechargeSummary.count} rechargement(s) · total <strong>{rechargeSummary.total} €</strong></span>
@@ -889,6 +902,11 @@ function todayLocal() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
+function formatDateFr(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : value;
+}
+
 function productFamily(value: string) {
   return normalizeSearch(value).replace(/\b(?:25|33|50)\s*c?l\b/g, "").replace(/\b(?:demi|pinte)\b/g, "").replace(/\s+/g, " ").trim();
 }
@@ -901,7 +919,7 @@ function compareProducts(left: ProductCost, right: ProductCost) {
 
 function createExportFiles(exported: AccountingExport, products: ProductCost[]) {
   const bottleProductIds = new Set(products.filter((product) => product.productTypeId === BOTTLE_TYPE_ID).map((product) => product.id));
-  const stamp = `-${exported.accounting.eventDate}`;
+  const stamp = `-${formatDateFr(exported.accounting.eventDate)}`;
   const accountingRows = exported.accounting.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, units: units ?? "0", purchasePricePerLiter, revenue }));
   const accountingCsv = createAccountingCsv(
     exported.accounting.eventName,
@@ -950,7 +968,7 @@ function createAccountingCsv(
   bottleProductIds: Set<number>,
 ) {
   const lines: Array<Array<string | number>> = [
-    ["Événement", eventName], ["Date", eventDate], ["Période", `${eventStartTime} – ${eventEndTime}`], [],
+    ["Événement", eventName], ["Date", formatDateFr(eventDate)], ["Période", `${eventStartTime} – ${eventEndTime}`], [],
     ["Produit", "Quantité", "Unité", "Prix d’achat", "Coût total", "Recettes réelles", "Résultat"],
     ...rows.map((row) => {
       const value = calculateRow(row);
