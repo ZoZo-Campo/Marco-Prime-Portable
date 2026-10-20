@@ -3,6 +3,7 @@ import { z } from "zod";
 const adminCardNumber = z.number().int().positive().safe();
 const decimal = (decimals: number) =>
   z.string().regex(new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`));
+const time = z.string().regex(/^\d{2}:\d{2}$/);
 
 export const accountingReadSchema = z.object({
   adminCardNumber,
@@ -13,6 +14,8 @@ export const accountingUpdateSchema = z.object({
   status: z.enum(["draft", "closed"]).default("draft"),
   eventName: z.string().trim().min(1).max(100),
   eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  eventStartTime: time.default("17:00"),
+  eventEndTime: time.default("00:00"),
   rows: z.array(z.object({
     id: z.string().uuid(),
     productId: z.number().int().positive().safe(),

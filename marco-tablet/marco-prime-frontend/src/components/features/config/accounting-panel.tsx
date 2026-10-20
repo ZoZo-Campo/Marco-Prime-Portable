@@ -51,11 +51,15 @@ type DialogName = "new-event" | "close-event" | null;
 
 // Type Fouaille des bouteilles : comptées en unités dans la compta, pas en litres.
 const BOTTLE_TYPE_ID = 9;
+const DEFAULT_START_TIME = "17:00";
+const DEFAULT_END_TIME = "00:00";
 
 interface AccountingDraft {
   status: AccountingStatus;
   eventName: string;
   eventDate: string;
+  eventStartTime: string;
+  eventEndTime: string;
   rows: EditableRow[];
 }
 
@@ -80,8 +84,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   const [status, setStatus] = useState<AccountingStatus>("draft");
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
-  const [rechargeExportFrom, setRechargeExportFrom] = useState(todayLocal());
-  const [rechargeExportTo, setRechargeExportTo] = useState(todayLocal());
+  const [eventStartTime, setEventStartTime] = useState(DEFAULT_START_TIME);
+  const [eventEndTime, setEventEndTime] = useState(DEFAULT_END_TIME);
   const [rechargeSummary, setRechargeSummary] = useState<AccountingExport["rechargeSummary"] | null>(null);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [productSearch, setProductSearch] = useState("");
@@ -95,8 +99,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   const lastSavedSignature = useRef("");
 
   const draft = useMemo<AccountingDraft>(
-    () => ({ status, eventName, eventDate, rows }),
-    [status, eventName, eventDate, rows],
+    () => ({ status, eventName, eventDate, eventStartTime, eventEndTime, rows }),
+    [status, eventName, eventDate, eventStartTime, eventEndTime, rows],
   );
   const draftSignature = useMemo(() => signature(draft), [draft]);
   const hasUnsavedChanges = loaded.current && draftSignature !== lastSavedSignature.current;
@@ -140,6 +144,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         status: value.status,
         eventName: value.eventName,
         eventDate: value.eventDate,
+        eventStartTime: value.eventStartTime,
+        eventEndTime: value.eventEndTime,
         rows: editableRows,
       };
       setAccounting(value);
@@ -148,6 +154,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       setStatus(value.status);
       setEventName(value.eventName);
       setEventDate(value.eventDate);
+      setEventStartTime(value.eventStartTime);
+      setEventEndTime(value.eventEndTime);
       setRows(editableRows);
       lastSavedSignature.current = signature(nextDraft);
       loaded.current = true;
@@ -180,6 +188,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           status: nextDraft.status,
           eventName: nextDraft.eventName.trim(),
           eventDate: nextDraft.eventDate,
+          eventStartTime: nextDraft.eventStartTime,
+          eventEndTime: nextDraft.eventEndTime,
           rows: normalizeRows(nextDraft.rows),
         }),
       });
@@ -211,11 +221,15 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
     setRows(editableRows);
     setEventName(value.eventName);
     setEventDate(value.eventDate);
+    setEventStartTime(value.eventStartTime);
+    setEventEndTime(value.eventEndTime);
     setStatus(value.status);
     lastSavedSignature.current = signature({
       status: value.status,
       eventName: value.eventName,
       eventDate: value.eventDate,
+      eventStartTime: value.eventStartTime,
+      eventEndTime: value.eventEndTime,
       rows: editableRows,
     });
   };
@@ -271,7 +285,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       const response = await fetch(apiUrl("statistics"), {
         method: "POST",
         headers: apiHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ adminCardNumber, ...eventRange(eventDate) }),
+        body: JSON.stringify({ adminCardNumber, ...eventRange(eventDate, eventStartTime, eventEndTime) }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const statistics = statisticsResponseSchema.parse(await response.json());
@@ -304,8 +318,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       setLastPrefillAt(new Date().toISOString());
       setMessage(
         statistics.summary.salesLines === 0
-          ? "Aucune vente trouvée entre 17 h et minuit. Les recettes restent modifiables."
-          : `${statistics.summary.salesLines} vente${statistics.summary.salesLines > 1 ? "s" : ""} intégrée${statistics.summary.salesLines > 1 ? "s" : ""}. Vérifiez puis ajustez les recettes réelles si nécessaire.`,
+          ? `Aucune vente trouvée sur la période ${eventStartTime}–${eventEndTime}. Les recettes restent modifiables.`
+          : `${statistics.summary.salesLines} vente${statistics.summary.salesLines > 1 ? "s" : ""} intégrée${statistics.summary.salesLines > 1 ? "s" : ""} sur la période ${eventStartTime}–${eventEndTime}. Vérifiez puis ajustez les recettes réelles si nécessaire.`,
       );
     } catch {
       setMessage("Impossible de récupérer les ventes de cette soirée.");
@@ -331,12 +345,16 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       status: "draft",
       eventName: "Soirée Marco",
       eventDate: todayLocal(),
+      eventStartTime: DEFAULT_START_TIME,
+      eventEndTime: DEFAULT_END_TIME,
       rows: nextRows,
     };
     setDialog(null);
     setStatus(nextDraft.status);
     setEventName(nextDraft.eventName);
     setEventDate(nextDraft.eventDate);
+    setEventStartTime(nextDraft.eventStartTime);
+    setEventEndTime(nextDraft.eventEndTime);
     setRows(nextDraft.rows);
     setLastPrefillAt(null);
     setLastExportSignature(null);
@@ -365,7 +383,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       const response = await fetch(apiUrl("accounting/export"), {
         method: "POST",
         headers: apiHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ adminCardNumber, ...eventRange(eventDate) }),
+        body: JSON.stringify({ adminCardNumber, ...eventRange(eventDate, eventStartTime, eventEndTime) }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const exported = accountingExportSchema.parse(await response.json());
@@ -401,18 +419,18 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   };
 
   const exportRecharges = async () => {
-    if (!rechargeExportFrom || !rechargeExportTo || rechargeExportFrom > rechargeExportTo) {
-      setMessage("Choisissez une période valide pour les rechargements.");
+    if (!eventDate) {
+      setMessage("Choisissez d’abord la date de la soirée.");
       return;
     }
     try {
-      const from = new Date(`${rechargeExportFrom}T00:00:00`).toISOString();
-      const toDate = new Date(`${rechargeExportTo}T00:00:00`);
-      toDate.setDate(toDate.getDate() + 1);
       const response = await fetch(apiUrl("accounting/export"), {
         method: "POST",
         headers: apiHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ adminCardNumber, from, to: toDate.toISOString() }),
+        body: JSON.stringify({
+          adminCardNumber,
+          ...eventRange(eventDate, eventStartTime, eventEndTime),
+        }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const exported = accountingExportSchema.parse(await response.json());
@@ -421,8 +439,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         ["Transaction", "Date", "Membre", "Montant", "Paiement reçu"],
         exported.recharges.map((recharge) => [recharge.orderId, formatCsvDate(recharge.date), memberName(recharge), csvNumber(Number(recharge.amount), 2), paymentMethodLabel(recharge.paymentMethod)]),
       );
-      downloadBlob(`rechargements-${rechargeExportFrom}-${rechargeExportTo}.csv`, csvFile("rechargements.csv", csv).blob);
-      setMessage(`${exported.recharges.length} rechargement(s) exporté(s).`);
+      downloadBlob(`rechargements-${eventDate}.csv`, csvFile("rechargements.csv", csv).blob);
+      setMessage(`${exported.recharges.length} rechargement(s) exporté(s) sur la période ${eventStartTime}–${eventEndTime}.`);
     } catch (error) {
       setMessage(`Export des rechargements impossible : ${error instanceof Error ? error.message : "erreur inconnue"}`);
     }
@@ -440,6 +458,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   };
 
   const totals = calculateTotals(rows);
+  const endIsNextDay = eventEndTime <= eventStartTime;
   const isBottleRow = (row: EditableRow) =>
     row.productId !== null && bottleProductIds.has(row.productId);
   const pricesReady = rows.length > 0 && rows.every(hasPositivePrice);
@@ -486,6 +505,26 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
               onInput={(event) => { setEventDate(event.currentTarget.value); setLastPrefillAt(null); setMessage(null); }}
             />
           </label>
+          <label class="flex flex-col gap-1 text-sm">
+            Début
+            <input
+              type="time"
+              class="border bg-input px-3 py-2 text-base disabled:opacity-60"
+              value={eventStartTime}
+              disabled={isClosed}
+              onInput={(event) => { setEventStartTime(event.currentTarget.value); setLastPrefillAt(null); setMessage(null); }}
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-sm">
+            Fin
+            <input
+              type="time"
+              class="border bg-input px-3 py-2 text-base disabled:opacity-60"
+              value={eventEndTime}
+              disabled={isClosed}
+              onInput={(event) => { setEventEndTime(event.currentTarget.value); setLastPrefillAt(null); setMessage(null); }}
+            />
+          </label>
         </header>
 
         {!isClosed && (
@@ -494,7 +533,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
               <Sparkles /> Préremplir depuis les ventes
             </Button>
             <p class="text-sm text-muted-foreground">
-              Période utilisée : 17 h–minuit le jour choisi. Les valeurs restent modifiables pour refléter les pertes et écarts réels.
+              Période utilisée : {eventDate || "jour choisi"} de {eventStartTime} à {eventEndTime}
+              {endIsNextDay && " (fin le lendemain)"}. Les valeurs restent modifiables pour refléter les pertes et écarts réels.
               {lastPrefillAt && ` Dernier préremplissage : ${new Date(lastPrefillAt).toLocaleTimeString("fr-FR")}.`}
             </p>
           </Card>
@@ -602,14 +642,16 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
         </Card>
 
           <Card class="flex flex-wrap items-end gap-3 p-4">
-            <label class="flex flex-col gap-1 text-sm">Rechargements du
-              <input type="date" class="border bg-input px-3 py-2 text-base" value={rechargeExportFrom} onInput={(event) => setRechargeExportFrom(event.currentTarget.value)} />
-            </label>
-            <label class="flex flex-col gap-1 text-sm">Au (inclus)
-              <input type="date" class="border bg-input px-3 py-2 text-base" value={rechargeExportTo} onInput={(event) => setRechargeExportTo(event.currentTarget.value)} />
-            </label>
-            <Button variant="outline" onClick={() => void exportRecharges()}><Download /> Exporter rechargements CSV</Button>
-            <p class="w-full text-xs text-muted-foreground">Le mode de paiement est enregistré en local à chaque rechargement effectué sur cette Marco. Les rechargements faits sur une autre caisse apparaissent « Pas rechargé sur cette Marco ».</p>
+            <div class="flex flex-col gap-1 text-sm">
+              <span class="font-medium">Rechargements de la soirée</span>
+              <span class="text-muted-foreground">
+                {eventDate
+                  ? `${eventDate} · ${eventStartTime} → ${eventEndTime}${endIsNextDay ? " (lendemain)" : ""}`
+                  : "Choisissez la date et les heures de la soirée ci-dessus."}
+              </span>
+            </div>
+            <Button variant="outline" disabled={!eventDate} onClick={() => void exportRecharges()}><Download /> Exporter rechargements CSV</Button>
+            <p class="w-full text-xs text-muted-foreground">Les rechargements utilisent la même période que la soirée. Le mode de paiement est enregistré en local à chaque rechargement effectué sur cette Marco ; ceux faits sur une autre caisse apparaissent « Pas rechargé sur cette Marco ».</p>
             {rechargeSummary && (
               <div class="flex w-full flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-sm">
                 <span>{rechargeSummary.count} rechargement(s) · total <strong>{rechargeSummary.total} €</strong></span>
@@ -763,6 +805,7 @@ function defaultsMap(accounting: Accounting) {
 function signature(draft: AccountingDraft) {
   return JSON.stringify({
     status: draft.status, eventName: draft.eventName, eventDate: draft.eventDate,
+    eventStartTime: draft.eventStartTime, eventEndTime: draft.eventEndTime,
     rows: draft.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, units, purchasePricePerLiter, revenue })),
   });
 }
@@ -783,6 +826,8 @@ function isValidDraft(draft: AccountingDraft) {
   const productIds = draft.rows.flatMap((row) => row.productId === null ? [] : [row.productId]);
   return draft.eventName.trim() !== ""
     && /^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate)
+    && /^\d{2}:\d{2}$/.test(draft.eventStartTime)
+    && /^\d{2}:\d{2}$/.test(draft.eventEndTime)
     && draft.rows.every((row) => row.productId !== null && row.label.trim() !== ""
       && normalizeNumber(row.liters) !== null
       && normalizeNumber(row.units) !== null
@@ -832,10 +877,10 @@ function canClose(rows: EditableRow[]) {
   return rows.length > 0 && rows.every(hasPositivePrice) && rows.every(hasPositiveQuantity);
 }
 
-function eventRange(eventDate: string) {
-  const from = new Date(`${eventDate}T17:00:00`);
-  const to = new Date(`${eventDate}T00:00:00`);
-  to.setDate(to.getDate() + 1);
+function eventRange(eventDate: string, startTime = DEFAULT_START_TIME, endTime = DEFAULT_END_TIME) {
+  const from = new Date(`${eventDate}T${startTime}:00`);
+  const to = new Date(`${eventDate}T${endTime}:00`);
+  if (to <= from) to.setDate(to.getDate() + 1);
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
@@ -861,6 +906,8 @@ function createExportFiles(exported: AccountingExport, products: ProductCost[]) 
   const accountingCsv = createAccountingCsv(
     exported.accounting.eventName,
     exported.accounting.eventDate,
+    exported.accounting.eventStartTime,
+    exported.accounting.eventEndTime,
     accountingRows,
     calculateTotals(accountingRows),
     bottleProductIds,
@@ -896,12 +943,14 @@ function createExportFiles(exported: AccountingExport, products: ProductCost[]) 
 function createAccountingCsv(
   eventName: string,
   eventDate: string,
+  eventStartTime: string,
+  eventEndTime: string,
   rows: EditableRow[],
   totals: ReturnType<typeof calculateTotals>,
   bottleProductIds: Set<number>,
 ) {
   const lines: Array<Array<string | number>> = [
-    ["Événement", eventName], ["Date", eventDate], [],
+    ["Événement", eventName], ["Date", eventDate], ["Période", `${eventStartTime} – ${eventEndTime}`], [],
     ["Produit", "Quantité", "Unité", "Prix d’achat", "Coût total", "Recettes réelles", "Résultat"],
     ...rows.map((row) => {
       const value = calculateRow(row);

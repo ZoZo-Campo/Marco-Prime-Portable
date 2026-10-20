@@ -209,6 +209,7 @@ curl -s http://127.0.0.1:3001/api/v1/system/status   # réponse de l'API
 | Serveur absent | `sh ~/relance-marco.sh --force` |
 | Bandeau rouge « Base » dans l'appli | Réseau MySQL indisponible → vérifier le réseau, puis `sh ~/relance-marco.sh` |
 | Frontend pas à jour | `sh ~/build-front.sh` puis recharger l'app |
+| Backend modifié | `sh ~/rebuild.sh` puis `sh ~/relance-marco.sh --force` |
 | `cp ... public/: No such file` | `build-front.sh` crée désormais `public/` automatiquement |
 | SSH « permission denied » | Vérifier `~/.ssh/authorized_keys` (600), `~/.ssh` (700), `~` (700) |
 | `adb shell` bloqué | `adb kill-server && adb start-server` |

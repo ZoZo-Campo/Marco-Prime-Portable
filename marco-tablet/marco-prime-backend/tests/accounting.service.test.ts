@@ -63,6 +63,24 @@ describe("AccountingService", () => {
     expect(JSON.parse(await readFile(path.join(directory, "accounting.json"), "utf8"))).not.toHaveProperty("vat");
   });
 
+  it("stores the event start and end times", async () => {
+    const saved = await accountingService.replace({
+      status: "draft",
+      eventName: "Soirée horaires",
+      eventDate: "2030-04-01",
+      eventStartTime: "18:30",
+      eventEndTime: "01:15",
+      rows: [],
+    });
+    expect(saved.eventStartTime).toBe("18:30");
+    expect(saved.eventEndTime).toBe("01:15");
+
+    accountingService.resetForTests();
+    const reopened = await accountingService.get();
+    expect(reopened.eventStartTime).toBe("18:30");
+    expect(reopened.eventEndTime).toBe("01:15");
+  });
+
   it("keeps positive per-liter prices for future events in the same file", async () => {
     await accountingService.replace({
       status: "draft",

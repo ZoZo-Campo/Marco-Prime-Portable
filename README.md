@@ -74,6 +74,15 @@ Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 | POST | `/members/search` | Recherche nom / prénom / promo / carte |
 | POST | `/purchase` | Valide un panier (transaction) |
 | POST | `/recharge` | Recharge de solde (carte admin) |
+| POST | `/statistics` | Recettes, coûts et bénéfice sur une période |
+| POST | `/accounting` | Lire la compta réelle locale |
+| PUT | `/accounting` | Enregistrer la compta réelle locale |
+| POST | `/accounting/export` | Export complet d’une soirée (ventes + recharges + compta) |
+
+**Compta réelle** : la période de la soirée se règle par date + heures de début
+et de fin (défaut 17 h → minuit, fin le lendemain si l'heure de fin précède le
+début). Le préremplissage des recettes et l'export des rechargements utilisent
+exactement cette même période.
 
 Documentation API détaillée : `marco-tablet/marco-prime-backend/README.md`.
 

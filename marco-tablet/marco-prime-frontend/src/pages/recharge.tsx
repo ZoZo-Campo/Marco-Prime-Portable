@@ -27,6 +27,8 @@ import {
 
 export const RECHARGE_ROUTE_URL = "/recharge";
 
+const RECHARGE_PRESETS = [5, 10, 15, 20, 50, 100] as const;
+
 export function RechargePage() {
   return (
     <MemberProvider disabled={rechargeInteractionLockedSignal.value}>
@@ -183,6 +185,24 @@ function RechargeContent() {
         <p class="text-6xl font-bold mb-4">
           {amount > 0 ? `${amount.toFixed(2)} €` : "0.00 €"}
         </p>
+        <div class="grid w-72 grid-cols-3 gap-2">
+          {RECHARGE_PRESETS.map((preset) => (
+            <Button
+              key={preset}
+              type="button"
+              variant={
+                rechargeAmountSignal.value === String(preset)
+                  ? "default"
+                  : "outline"
+              }
+              class="h-11 text-base font-semibold"
+              onClick={() => (rechargeAmountSignal.value = String(preset))}
+              disabled={rechargeInteractionLockedSignal.value}
+            >
+              {preset} €
+            </Button>
+          ))}
+        </div>
         <div class="w-72">
           <Keypad
             value={rechargeAmountSignal.value}
@@ -198,7 +218,7 @@ function RechargeContent() {
         <fieldset disabled={rechargeInteractionLockedSignal.value} class="space-y-2">
           <legend class="text-sm font-medium">Paiement reçu</legend>
           <div class="grid grid-cols-2 gap-2">
-            <Button type="button" variant={rechargePaymentMethodSignal.value === "card" ? "default" : "outline"} onClick={() => rechargePaymentMethodSignal.value = "card"}>Carte bancaire</Button>
+            <Button type="button" variant={rechargePaymentMethodSignal.value === "card" ? "default" : "outline"} onClick={() => rechargePaymentMethodSignal.value = "card"}>CB</Button>
             <Button type="button" variant={rechargePaymentMethodSignal.value === "cash" ? "default" : "outline"} onClick={() => rechargePaymentMethodSignal.value = "cash"}>Espèces</Button>
           </div>
         </fieldset>

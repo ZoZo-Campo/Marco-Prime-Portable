@@ -180,10 +180,13 @@ sont saisis manuellement. Marco calcule seulement le coût total et le résultat
 (`recettes - coût`). Il n’y a ni HT, ni TVA, ni brut/net. Les données sont
 conservées dans `accounting.json` sous `MARCO_DATA_DIR`. Chaque ligne référence
 un produit réel du catalogue Fouaille. Le brouillon s’enregistre automatiquement
-et indique son état à l’écran. **Préremplir depuis les ventes** récupère les
-recettes Marco entre 17 h et minuit, tout en laissant chaque montant modifiable.
-Les produits actuellement disponibles sont affichés avant les anciens produits
-ou produits hors vente.
+et indique son état à l’écran. La période de la soirée est configurable via
+l’heure de début et l’heure de fin, conservées dans `accounting.json`
+(`eventStartTime` / `eventEndTime`, par défaut 17 h → minuit ; si la fin est
+avant le début, elle tombe le lendemain). **Préremplir depuis les ventes**
+récupère les recettes Marco sur cette période, tout en laissant chaque montant
+modifiable. Les produits actuellement disponibles sont affichés avant les
+anciens produits ou produits hors vente.
 
 **Nouvelle soirée** remet à zéro la date, les litres et les recettes, avec le
 choix de conserver ou non les produits habituels. Les derniers prix d’achat au
@@ -193,8 +196,10 @@ les litres et l’export avant de verrouiller le bilan ; une soirée clôturée 
 
 L’export complet demande un dossier à Chromium puis crée `compta.csv`,
 `ventes.csv`, `rechargements.csv`, `corrections.csv` et
-`sauvegarde-marco.json`. Si le sélecteur de dossier n’est pas disponible, les
-fichiers sont téléchargés dans le dossier configuré dans Chromium.
+`sauvegarde-marco.json`. Les ventes **et** les rechargements sont filtrés sur la
+même période que la soirée (date + heures de début/fin). Si le sélecteur de
+dossier n’est pas disponible, les fichiers sont téléchargés dans le dossier
+configuré dans Chromium.
 
 ### Recharges
 - `POST /api/v1/recharge` - Recharger le solde d'un membre

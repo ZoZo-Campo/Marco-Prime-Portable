@@ -22,6 +22,8 @@ const storedSchema = z.object({
   status: z.enum(["draft", "closed"]).default("draft"),
   eventName: z.string(),
   eventDate: z.string(),
+  eventStartTime: z.string().default("17:00"),
+  eventEndTime: z.string().default("00:00"),
   rows: z.array(rowSchema),
   productDefaults: z.array(productDefaultSchema).default([]),
   closedAt: z.string().datetime().nullable().default(null),
@@ -32,6 +34,8 @@ export type AccountingInput = {
   status: "draft" | "closed";
   eventName: string;
   eventDate: string;
+  eventStartTime?: string;
+  eventEndTime?: string;
   rows: Array<Omit<z.infer<typeof rowSchema>, "productId"> & { productId: number }>;
 };
 
@@ -40,6 +44,8 @@ const emptyAccounting = (): z.infer<typeof storedSchema> => ({
   status: "draft",
   eventName: "Soirée Marco",
   eventDate: new Date().toISOString().slice(0, 10),
+  eventStartTime: "17:00",
+  eventEndTime: "00:00",
   rows: [],
   productDefaults: [],
   closedAt: null,
@@ -89,6 +95,8 @@ class AccountingService {
       status: input.status,
       eventName: input.eventName.trim(),
       eventDate: input.eventDate,
+      eventStartTime: input.eventStartTime ?? "17:00",
+      eventEndTime: input.eventEndTime ?? "00:00",
       rows: input.rows.map((row) => ({
         ...row,
         label: row.label.trim(),
