@@ -11,6 +11,7 @@ import { Card } from "../components/ui/card";
 import { TICKET_ROUTE_URL } from "./ticket";
 import { apiHeaders, apiUrl } from "../config/api";
 import { MemberSearch } from "../components/features/member/member-search";
+import { QrScanButton } from "../components/features/member/qr-scan-button";
 import { BirthdayBadge } from "../components/features/member/birthday-badge";
 import { CardCodeEntry } from "../components/features/buy/card-code-entry";
 import {
@@ -310,8 +311,8 @@ function RechargeContent() {
               <CreditCard class="size-16 mx-auto mb-4 text-primary" />
               <h2 class="text-xl font-bold mb-2">Carte admin requise</h2>
               <p class="text-muted-foreground">
-                Veuillez scanner une carte administrateur pour valider le
-                rechargement
+                Scannez la carte RFID admin, son QR code, ou saisissez son code
+                pour valider le rechargement.
               </p>
             </div>
             <div class="px-6 py-4 border-t border-b text-center">
@@ -321,7 +322,14 @@ function RechargeContent() {
               </p>
             </div>
             <div class="px-6">
-              <p class="mb-3 text-sm text-muted-foreground">
+              <QrScanButton
+                label="Scanner le QR admin"
+                onSubmit={(adminCode) => {
+                  processRecharge(Number(adminCode));
+                  return false;
+                }}
+              />
+              <p class="mb-3 mt-4 text-sm text-muted-foreground">
                 Ou saisissez le code de la carte admin sur le pavé :
               </p>
               <CardCodeEntry

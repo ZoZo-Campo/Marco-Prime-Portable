@@ -63,7 +63,7 @@ Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 2. **Membre chargé** → solde affiché, panier déverrouillé (refus si solde négatif)
 3. **Ajout produits** → feedback visuel + son
 4. **Paiement** → `POST /api/v1/purchase` (transaction) → solde + historique (débit immédiat)
-5. **Rechargement** → carte admin + montant → `POST /api/v1/recharge`
+5. **Rechargement** → carte RFID admin, QR admin ou code admin + montant → `POST /api/v1/recharge`
 
 ### Routes principales (API, préfixe `/api/v1`)
 | Méthode | Route | Description |
@@ -77,7 +77,7 @@ Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 | GET | `/member/:card_number` | Membre par n° de carte |
 | POST | `/members/search` | Recherche nom / prénom / promo / carte |
 | POST | `/purchase` | Valide un panier (transaction) |
-| POST | `/recharge` | Recharge de solde (carte admin) |
+| POST | `/recharge` | Recharge de solde (carte RFID, QR ou code admin) |
 | POST | `/statistics` | Recettes, coûts et bénéfice sur une période |
 | POST | `/accounting` | Lire la compta réelle locale |
 | PUT | `/accounting` | Enregistrer la compta réelle locale |
