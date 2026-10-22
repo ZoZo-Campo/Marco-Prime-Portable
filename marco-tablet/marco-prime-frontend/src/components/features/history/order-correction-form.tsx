@@ -1,14 +1,13 @@
 import {
   AlertTriangle,
   CheckCircle2,
-  CreditCard,
   Loader2,
   RotateCcw,
-  ShieldAlert,
   XCircle,
 } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
 import { apiHeaders, apiUrl } from "../../../config/api";
+import { AdminAuthPanel } from "../auth/admin-auth-panel";
 import { MemberProvider, useMember } from "../../../contexts/member-context";
 import type { OrderSchema } from "../../../schemas/order.schema";
 import {
@@ -34,16 +33,7 @@ function OrderCorrectionEditor({
   order,
   onComplete,
 }: OrderCorrectionFormProps) {
-  const {
-    data: member,
-    loading: memberLoading,
-    error: memberError,
-    inputLength,
-    retry,
-    clear,
-    pause,
-    resume,
-  } = useMember();
+  const { data: member, pause, resume, clear } = useMember();
   const [products, setProducts] = useState<ProductCost[]>([]);
   const [replacementProductId, setReplacementProductId] = useState(
     String(order.product?.id ?? ""),
@@ -60,9 +50,9 @@ function OrderCorrectionEditor({
   const isAdmin = member?.admin === true;
 
   useEffect(() => {
-    if (member) pause();
+    if (isAdmin) pause();
     else resume();
-  }, [member?.cardNumber]);
+  }, [isAdmin]);
 
   const changeAdministrator = () => {
     clear();
@@ -98,50 +88,13 @@ function OrderCorrectionEditor({
     };
   }, [isAdmin]);
 
-  if (!member) {
-    return (
-      <section class="mt-6 border-t pt-5">
-        <h3 class="text-xl font-bold">Corriger cette vente</h3>
-        <div class="mt-4 flex flex-col items-center gap-3 rounded-lg border bg-muted/30 p-5 text-center">
-          {memberLoading ? (
-            <Loader2 class="size-10 animate-spin text-primary" />
-          ) : memberError ? (
-            <AlertTriangle class="size-10 text-destructive" />
-          ) : (
-            <CreditCard class="size-10 text-primary" />
-          )}
-          {memberError ? (
-            <>
-              <p class="text-destructive">
-                Carte inconnue ou serveur indisponible.
-              </p>
-              <div class="flex flex-wrap justify-center gap-3">
-                <Button variant="outline" onClick={() => void retry()}>
-                  Réessayer
-                </Button>
-                <Button onClick={clear}>Scanner une autre carte</Button>
-              </div>
-            </>
-          ) : (
-            <p class="text-muted-foreground">
-              {inputLength > 0
-                ? `Saisie en cours : ${inputLength} chiffre${inputLength > 1 ? "s" : ""}. Appuyez sur Entrée.`
-                : "Scannez une carte administrateur pour autoriser la correction."}
-            </p>
-          )}
-        </div>
-      </section>
-    );
-  }
-
   if (!isAdmin) {
     return (
       <section class="mt-6 border-t pt-5">
-        <div class="flex flex-col items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-5 text-center">
-          <ShieldAlert class="size-10 text-destructive" />
-          <p class="font-semibold">Cette carte n’est pas administratrice.</p>
-          <Button onClick={changeAdministrator}>Scanner une autre carte</Button>
-        </div>
+        <AdminAuthPanel
+          title="Corriger cette vente"
+          description="Carte, QR admin ou code manuel : choisissez la méthode. Le lecteur de carte reste actif en arrière-plan."
+        />
       </section>
     );
   }

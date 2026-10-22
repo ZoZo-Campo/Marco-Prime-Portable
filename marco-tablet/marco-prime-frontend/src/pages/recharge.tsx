@@ -1,6 +1,6 @@
 import { useLocation } from "preact-iso";
 import { useEffect } from "preact/hooks";
-import { AlertTriangle, Loader2, CreditCard } from "lucide-preact";
+import { AlertTriangle, Loader2, ShieldCheck } from "lucide-preact";
 import { MemberProvider, useMember } from "../contexts/member-context";
 import { setTicket } from "../contexts/ticket-context";
 import { useRfid } from "../hooks/use-rfid";
@@ -308,11 +308,11 @@ function RechargeContent() {
         <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card class="w-96 gap-4 py-6">
             <div class="px-6 text-center">
-              <CreditCard class="size-16 mx-auto mb-4 text-primary" />
-              <h2 class="text-xl font-bold mb-2">Carte admin requise</h2>
+              <ShieldCheck class="size-12 mx-auto mb-3 text-primary" />
+              <h2 class="text-xl font-bold mb-2">Autorisation administrateur</h2>
               <p class="text-muted-foreground">
-                Scannez la carte RFID admin, son QR code, ou saisissez son code
-                pour valider le rechargement.
+                La carte RFID reste active en arrière-plan. Vous pouvez aussi
+                scanner le QR admin ou saisir son code.
               </p>
             </div>
             <div class="px-6 py-4 border-t border-b text-center">

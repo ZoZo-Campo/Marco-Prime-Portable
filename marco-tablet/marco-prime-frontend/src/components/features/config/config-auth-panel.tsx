@@ -3,16 +3,12 @@ import {
   CheckCircle2,
   KeyRound,
   Loader2,
-  LockKeyhole,
   ShieldCheck,
   Trash2,
 } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
 import { apiHeaders, apiUrl } from "../../../config/api";
-import {
-  memberSchema,
-  type MemberSchema,
-} from "../../../schemas/member.schema";
+import type { MemberSchema } from "../../../schemas/member.schema";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
 
@@ -25,108 +21,6 @@ async function fetchStatus(): Promise<AuthStatus> {
   });
   if (!response.ok) throw new Error("Statut du mot de passe indisponible.");
   return (await response.json()) as AuthStatus;
-}
-
-export function ConfigPasswordUnlock({
-  onUnlocked,
-}: {
-  onUnlocked: (member: MemberSchema) => void;
-}) {
-  const [status, setStatus] = useState<AuthStatus | null>(null);
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchStatus()
-      .then(setStatus)
-      .catch(() => setStatus({ configured: false, updatedAt: null }));
-  }, []);
-
-  if (!status?.configured) return null;
-
-  const unlock = async () => {
-    if (password.length < 8) {
-      setError("Saisissez le mot de passe de configuration.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(apiUrl("config-auth/unlock"), {
-        method: "POST",
-        headers: apiHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ password }),
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          body?.message ?? body?.error ?? `Erreur HTTP ${response.status}`,
-        );
-      }
-      const parsed = memberSchema.safeParse(body?.member);
-      if (!parsed.success) {
-        throw new Error("Réponse administrateur invalide.");
-      }
-      setPassword("");
-      onUnlocked(parsed.data);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Déverrouillage impossible.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Card class="gap-3 border-primary/30 bg-primary/5 p-4">
-      <div class="flex items-center gap-3">
-        <span class="flex size-10 items-center justify-center rounded-full bg-primary/15 text-primary">
-          <LockKeyhole class="size-6" />
-        </span>
-        <div>
-          <h2 class="text-lg font-bold">Mot de passe de configuration</h2>
-          <p class="text-sm text-muted-foreground">
-            Accès rapide sans scanner la carte administrateur.
-          </p>
-        </div>
-      </div>
-      <form
-        class="flex flex-col gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void unlock();
-        }}
-      >
-        <input
-          type="password"
-          class="min-h-12 border bg-input px-3 text-lg"
-          autocomplete="current-password"
-          maxlength={128}
-          value={password}
-          placeholder="Mot de passe"
-          onInput={(event) => {
-            setPassword(event.currentTarget.value);
-            setError(null);
-          }}
-        />
-        <Button type="submit" disabled={loading || password.length < 8}>
-          {loading ? (
-            <Loader2 class="size-5 animate-spin" />
-          ) : (
-            <KeyRound class="size-5" />
-          )}
-          Déverrouiller
-        </Button>
-      </form>
-      {error && (
-        <p class="flex gap-2 text-sm text-destructive">
-          <AlertTriangle class="size-4 shrink-0" /> {error}
-        </p>
-      )}
-    </Card>
-  );
 }
 
 export function ConfigPasswordSettings({
