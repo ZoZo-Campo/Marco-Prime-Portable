@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -29,6 +30,7 @@ const storedSchema = z.object({
   closedAt: z.string().datetime().nullable().default(null),
   updatedAt: z.string().datetime(),
 });
+type StoredAccounting = z.infer<typeof storedSchema>;
 
 export type AccountingInput = {
   status: "draft" | "closed";
@@ -53,7 +55,8 @@ const emptyAccounting = (): z.infer<typeof storedSchema> => ({
 });
 
 class AccountingService {
-  private value: z.infer<typeof storedSchema> | undefined;
+  private value: StoredAccounting | undefined;
+  private pendingWrite: Promise<unknown> = Promise.resolve();
 
   private get filePath() {
     return path.join(process.env.MARCO_DATA_DIR || "./data", "accounting.json");
@@ -73,7 +76,15 @@ class AccountingService {
     return structuredClone(this.value);
   }
 
-  async replace(input: AccountingInput) {
+  replace(input: AccountingInput): Promise<StoredAccounting> {
+    const operation = this.pendingWrite
+      .catch(() => undefined)
+      .then(() => this.applyReplace(input));
+    this.pendingWrite = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async applyReplace(input: AccountingInput) {
     const current = await this.get();
     const now = new Date().toISOString();
     const productDefaults = new Map(
@@ -134,7 +145,7 @@ function normalize(value: string, decimals: number) {
 }
 
 async function atomicWrite(targetPath: string, value: unknown) {
-  const temporaryPath = `${targetPath}.${process.pid}.tmp`;
+  const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`;
   await mkdir(path.dirname(targetPath), { recursive: true });
   await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(temporaryPath, targetPath);

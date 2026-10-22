@@ -3,7 +3,14 @@ import { z } from "zod";
 const adminCardNumber = z.number().int().positive().safe();
 const decimal = (decimals: number) =>
   z.string().regex(new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`));
-const time = z.string().regex(/^\d{2}:\d{2}$/);
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const calendarDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, "Invalid calendar date");
 
 export const accountingReadSchema = z.object({
   adminCardNumber,
@@ -13,7 +20,7 @@ export const accountingUpdateSchema = z.object({
   adminCardNumber,
   status: z.enum(["draft", "closed"]).default("draft"),
   eventName: z.string().trim().min(1).max(100),
-  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  eventDate: calendarDate,
   eventStartTime: time.default("16:30"),
   eventEndTime: time.default("23:59"),
   rows: z.array(z.object({

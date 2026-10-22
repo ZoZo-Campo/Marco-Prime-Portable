@@ -58,11 +58,7 @@ export function MemberProvider({
       : null;
   const data = selectedMember ?? scannedMember;
 
-  const hadMemberRef = useRef(false);
-  useEffect(() => {
-    if (data) hadMemberRef.current = true;
-    else hadMemberRef.current = false;
-  }, [data]);
+  const lastCardRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (data) addRecentMember(data);
@@ -70,11 +66,14 @@ export function MemberProvider({
   }, [data?.id]);
 
   useEffect(() => {
-    if (memberCardId) {
-      if (hadMemberRef.current) shopping.reset();
-      setSelectedMember(null);
-      refetch();
+    if (!memberCardId) return;
+    const nextCard = String(memberCardId);
+    if (lastCardRef.current !== undefined && lastCardRef.current !== nextCard) {
+      shopping.reset();
     }
+    lastCardRef.current = nextCard;
+    setSelectedMember(null);
+    refetch();
   }, [memberCardId, scanId]);
 
   const pause = () => setPaused(true);

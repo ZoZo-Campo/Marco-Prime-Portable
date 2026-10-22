@@ -4,7 +4,6 @@ import { apiHeaders } from "../config/api";
 
 interface UseApiOptions {
   immediate?: boolean; // Si true, fetch immédiatement au mount (défaut: true)
-  fetchOptions?: RequestInit; // Options fetch supplémentaires
 }
 
 interface UseApiState<T> {
@@ -28,7 +27,7 @@ export function useApi<T>(
   url: string,
   options: UseApiOptions = {},
 ): UseApiState<T> {
-  const { immediate = true, fetchOptions = {} } = options;
+  const { immediate = true } = options;
 
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,9 +48,8 @@ export function useApi<T>(
 
     try {
       const res = await fetch(url, {
-        ...fetchOptions,
         signal: controller.signal,
-        headers: apiHeaders(fetchOptions?.headers),
+        headers: apiHeaders(),
       });
 
       if (!res.ok) {
@@ -72,7 +70,6 @@ export function useApi<T>(
       }
       if (requestId === requestIdRef.current) {
         setError(err instanceof Error ? err : new Error("Unknown error"));
-        setData(null);
       }
     } finally {
       if (requestId === requestIdRef.current) {

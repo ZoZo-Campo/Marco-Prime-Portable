@@ -57,7 +57,7 @@ export function ProductGrid() {
     );
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <main class="flex-1 flex flex-col items-center justify-center gap-4 text-center">
         <AlertCircle class="size-10 text-destructive" />

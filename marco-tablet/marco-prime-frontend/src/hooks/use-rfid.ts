@@ -13,6 +13,16 @@ const RFID_MAX_KEY_INTERVAL_MS = 150;
 const RFID_END_DELAY_MS = 300;
 const MANUAL_INPUT_TIMEOUT_MS = 5_000;
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  );
+}
+
 function digitFromKeyboardEvent(event: KeyboardEvent) {
   if (/^\d$/.test(event.key)) return event.key;
 
@@ -56,6 +66,10 @@ export function useRfid(options: UseRfidOptions = {}) {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        if (bufferRef.current.length > 0) clearBuffer();
+        return;
+      }
       if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) {
         return;
       }

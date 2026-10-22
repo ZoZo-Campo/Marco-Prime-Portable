@@ -122,6 +122,37 @@ describe("AccountingService", () => {
     ).toContain('"productDefaults"');
   });
 
+  it("serializes concurrent saves without losing prior defaults", async () => {
+    const first = accountingService.replace({
+      status: "draft",
+      eventName: "Première soirée",
+      eventDate: "2030-05-01",
+      rows: [
+        {
+          id: "f31efb78-158b-4f28-914f-8f42c86e98f9",
+          productId: 1,
+          label: "Primus",
+          liters: "10",
+          purchasePricePerLiter: "3.14",
+          revenue: "40",
+        },
+      ],
+    });
+    const second = accountingService.replace({
+      status: "draft",
+      eventName: "Deuxième soirée",
+      eventDate: "2030-05-02",
+      rows: [],
+    });
+
+    await Promise.all([first, second]);
+    const saved = await accountingService.get();
+    expect(saved.eventName).toBe("Deuxième soirée");
+    expect(saved.productDefaults).toEqual([
+      { productId: 1, purchasePricePerLiter: "3.14" },
+    ]);
+  });
+
   it("records closure and can reopen an event without losing its rows", async () => {
     const input = {
       eventName: "Soirée à clôturer",
