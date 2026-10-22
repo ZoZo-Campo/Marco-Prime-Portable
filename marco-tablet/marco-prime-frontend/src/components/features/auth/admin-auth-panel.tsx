@@ -10,14 +10,11 @@ import {
 } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
 import { apiHeaders, apiUrl } from "../../../config/api";
-import {
-  isValidCardNumber,
-  MAX_CARD_NUMBER_DIGITS,
-} from "../../../constants";
 import { useMember } from "../../../contexts/member-context";
 import { memberSchema } from "../../../schemas/member.schema";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
+import { CardCodeEntry } from "../buy/card-code-entry";
 import { QrScanButton } from "../member/qr-scan-button";
 
 type AuthMethod = "card" | "qr" | "code" | "password";
@@ -53,7 +50,6 @@ export function AdminAuthPanel({
     select,
   } = useMember();
   const [method, setMethod] = useState<AuthMethod>("card");
-  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfigured, setPasswordConfigured] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -79,13 +75,6 @@ export function AdminAuthPanel({
     setMethod(next);
     setPasswordError(null);
     if (next !== "card") resume();
-  };
-
-  const submitCode = () => {
-    if (!isValidCardNumber(code)) return;
-    submitCardNumber(code);
-    setCode("");
-    setMethod("card");
   };
 
   const unlockWithPassword = async () => {
@@ -214,6 +203,7 @@ export function AdminAuthPanel({
           <QrScanButton
             class="mt-0"
             label="Scanner le QR admin"
+            autoStart
             onSubmit={(cardNumber) => {
               submitCardNumber(cardNumber);
               setMethod("card");
@@ -229,40 +219,19 @@ export function AdminAuthPanel({
       )}
 
       {method === "code" && (
-        <form
-          class="flex flex-col gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitCode();
-          }}
-        >
-          <label class="text-sm font-medium" for="admin-auth-code">
-            Code de la carte administrateur
-          </label>
-          <div class="flex flex-wrap gap-2">
-            <input
-              id="admin-auth-code"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              autocomplete="off"
-              maxlength={MAX_CARD_NUMBER_DIGITS}
-              class="min-h-11 min-w-0 flex-1 border bg-input px-3 text-lg tracking-wider"
-              value={code}
-              placeholder="Numéro de carte"
-              onInput={(event) => {
-                setCode(
-                  event.currentTarget.value
-                    .replace(/\D/g, "")
-                    .slice(0, MAX_CARD_NUMBER_DIGITS),
-                );
-              }}
-            />
-            <Button type="submit" disabled={!isValidCardNumber(code)}>
-              Valider
-            </Button>
-          </div>
-        </form>
+        <div>
+          <p class="mb-3 text-sm text-muted-foreground">
+            Saisissez le code de la carte administrateur sur le pavé ci-dessous.
+          </p>
+          <CardCodeEntry
+            title="Code carte admin"
+            onSubmit={(cardNumber) => {
+              submitCardNumber(cardNumber);
+              setMethod("card");
+              return false;
+            }}
+          />
+        </div>
       )}
 
       {method === "password" && (

@@ -18,6 +18,7 @@ interface QrScanButtonProps {
   variant?: "default" | "outline";
   onScanStart?: () => void;
   onScanEnd?: () => void;
+  autoStart?: boolean;
 }
 
 /**
@@ -46,6 +47,7 @@ export function QrScanButton({
   variant = "outline",
   onScanStart,
   onScanEnd,
+  autoStart = false,
 }: QrScanButtonProps) {
   const [detected, setDetected] = useState(false);
   const startRef = useRef(onScanStart);
@@ -71,6 +73,11 @@ export function QrScanButton({
   // instantané (le flux reste chaud ensuite, voir useQrScanner).
   useEffect(() => {
     scanner.warm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (autoStart) scanner.start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
