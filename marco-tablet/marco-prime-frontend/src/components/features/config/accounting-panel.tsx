@@ -51,7 +51,7 @@ type DialogName = "new-event" | "close-event" | null;
 
 // Type Fouaille des bouteilles : comptées en unités dans la compta, pas en litres.
 const BOTTLE_TYPE_ID = 9;
-const DEFAULT_START_TIME = "17:00";
+const DEFAULT_START_TIME = "16:30";
 const DEFAULT_END_TIME = "23:59";
 
 interface AccountingDraft {

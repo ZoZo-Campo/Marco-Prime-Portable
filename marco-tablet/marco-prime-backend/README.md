@@ -204,7 +204,7 @@ conservées dans `accounting.json` sous `MARCO_DATA_DIR`. Chaque ligne référen
 un produit réel du catalogue Fouaille. Le brouillon s’enregistre automatiquement
 et indique son état à l’écran. La période de la soirée est configurable via
 l’heure de début et l’heure de fin, conservées dans `accounting.json`
-(`eventStartTime` / `eventEndTime`, par défaut 17 h → 23 h 59 ; si la fin est
+(`eventStartTime` / `eventEndTime`, par défaut 16 h 30 → 23 h 59 ; si la fin est
 avant le début, elle tombe le lendemain). **Préremplir depuis les ventes**
 récupère les recettes Marco sur cette période, tout en laissant chaque montant
 modifiable. L’export des rechargements possède sa **propre plage date + heure**

@@ -24,12 +24,19 @@ export function Layout({ children }: LayoutProps) {
 
   // Garde anti-clavier : quand le clavier se rétracte, Chrome peut laisser le
   // viewport décalé vers le bas (liseré en haut + clavier qui rejaillit au
-  // prochain tap). On recentre le scroll dès que le clavier disparaît.
+  // prochain tap). On recentre le scroll dès que le clavier disparaît, y
+  // compris après un simple blur (focusout), sans attendre un tap ailleurs.
   useEffect(() => {
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
     let fullHeight = Math.max(window.innerHeight, visualViewport.height);
     let keyboardVisible = false;
+
+    const resetPageScroll = () => {
+      window.scrollTo(0, 0);
+      const scrollingElement = document.scrollingElement;
+      if (scrollingElement) scrollingElement.scrollTop = 0;
+    };
 
     const onResize = () => {
       const currentInner = window.innerHeight;
@@ -39,21 +46,31 @@ export function Layout({ children }: LayoutProps) {
         keyboardVisible = true;
       } else if (keyboardVisible) {
         keyboardVisible = false;
-        visualViewport.offsetTop > 0 && window.scrollTo(0, 0);
+        resetPageScroll();
       }
     };
 
     const onScroll = () => {
       if (!keyboardVisible && visualViewport.offsetTop > 0) {
-        window.scrollTo(0, 0);
+        resetPageScroll();
       }
+    };
+
+    const onFocusOut = () => {
+      window.setTimeout(() => {
+        if (!keyboardVisible) resetPageScroll();
+      }, 80);
     };
 
     visualViewport.addEventListener("resize", onResize);
     visualViewport.addEventListener("scroll", onScroll);
+    window.addEventListener("resize", onResize);
+    document.addEventListener("focusout", onFocusOut);
     return () => {
       visualViewport.removeEventListener("resize", onResize);
       visualViewport.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("focusout", onFocusOut);
     };
   }, []);
 

@@ -37,6 +37,7 @@ import { AccountingPanel } from "../components/features/config/accounting-panel"
 import { MembersPanel } from "../components/features/config/members-panel";
 import { FouailleProductsPanel } from "../components/features/config/fouaille-products-panel";
 import { SetupPanel } from "../components/features/config/setup-panel";
+import { ConfigPasswordUnlock } from "../components/features/config/config-auth-panel";
 import { QrScanButton } from "../components/features/member/qr-scan-button";
 import { Keypad } from "../components/features/recharge/keypad";
 
@@ -64,6 +65,7 @@ function ConfigContent() {
     submitCardNumber,
     clear,
     pause,
+    select,
   } = useMember();
   const [manualCardNumber, setManualCardNumber] = useState("");
   const isAdmin = member?.admin === true;
@@ -139,7 +141,9 @@ function ConfigContent() {
   if (!member) {
     return (
       <div class="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-3">
-        <Card class="grid w-full max-w-4xl gap-4 p-4 md:grid-cols-[1fr_20rem]">
+        <div class="grid w-full max-w-4xl gap-4">
+          <ConfigPasswordUnlock onUnlocked={select} />
+          <Card class="grid w-full gap-4 p-4 md:grid-cols-[1fr_20rem]">
           <div class="flex flex-col items-center justify-center gap-3 text-center">
             {memberLoading ? (
               <Loader2 class="size-12 animate-spin text-primary" />
@@ -211,7 +215,8 @@ function ConfigContent() {
               Effacer et recommencer
             </Button>
           </form>
-        </Card>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -512,7 +517,7 @@ function ConfigContent() {
     return (
       <div class="flex flex-1 min-h-0 flex-col overflow-hidden">
         {adminNavigation}
-        <SetupPanel adminCardNumber={member.cardNumber} />
+        <SetupPanel member={member} />
       </div>
     );
   }

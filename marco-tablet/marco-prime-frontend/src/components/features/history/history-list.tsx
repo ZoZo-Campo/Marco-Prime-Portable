@@ -7,6 +7,7 @@ import { Card } from "../../ui/card";
 import { Skeleton } from "../../ui/skeleton";
 import { HistoryItem } from "./history-item";
 import { OrderCorrectionForm } from "./order-correction-form";
+import { RechargeCorrectionForm } from "./recharge-correction-form";
 
 function HistoryListSkeleton() {
   return (
@@ -161,10 +162,25 @@ export function HistoryList({
                 }}
               />
             )}
+            {canCorrectRecharge(selectedOrder) && (
+              <RechargeCorrectionForm
+                order={selectedOrder}
+                onComplete={() => {
+                  setSelectedOrderId(null);
+                  onCorrectionComplete();
+                }}
+              />
+            )}
             {!canCorrect(selectedOrder) &&
               selectedOrder.ledgerKind === "corrected-original" && (
                 <p class="mt-6 border-t pt-5 text-center text-muted-foreground">
                   Cette vente a déjà été corrigée.
+                </p>
+              )}
+            {!canCorrectRecharge(selectedOrder) &&
+              selectedOrder.ledgerKind === "recharge-corrected" && (
+                <p class="mt-6 border-t pt-5 text-center text-muted-foreground">
+                  Ce rechargement a déjà été annulé.
                 </p>
               )}
           </div>
@@ -182,6 +198,20 @@ function canCorrect(order: OrderSchema) {
   );
 }
 
+function canCorrectRecharge(order: OrderSchema) {
+  return (
+    order.product === null &&
+    Number(order.effectivePrice) > 0 &&
+    (order.ledgerKind === undefined || order.ledgerKind === "recharge")
+  );
+}
+
+function paymentMethodLabel(method: "card" | "cash" | null | undefined) {
+  if (method === "card") return "Carte bancaire";
+  if (method === "cash") return "Espèces";
+  return null;
+}
+
 function TransactionDetail({
   order,
   previousBalance,
@@ -194,17 +224,22 @@ function TransactionDetail({
   const memberName = order.member
     ? `${order.member.firstName} ${order.member.lastName}`
     : "Membre supprimé";
-  const operation = order.ledgerKind === "correction-refund"
-    ? `Remboursement de la vente #${order.correctionOriginalOrderId}`
-    : order.product
-      ? `${order.amount} × ${order.product.name}${
-          order.ledgerKind === "corrected-original"
-            ? " (vente corrigée)"
-            : order.ledgerKind === "correction-replacement"
-              ? " (remplacement)"
-              : ""
-        }`
-      : "Rechargement";
+  const operation =
+    order.ledgerKind === "recharge-correction"
+      ? `Annulation du rechargement #${order.correctionOriginalOrderId}`
+      : order.ledgerKind === "recharge-corrected"
+        ? "Rechargement annulé"
+        : order.ledgerKind === "correction-refund"
+          ? `Remboursement de la vente #${order.correctionOriginalOrderId}`
+          : order.product
+            ? `${order.amount} × ${order.product.name}${
+                order.ledgerKind === "corrected-original"
+                  ? " (vente corrigée)"
+                  : order.ledgerKind === "correction-replacement"
+                    ? " (remplacement)"
+                    : ""
+              }`
+            : "Rechargement";
   const amount = Number(order.effectivePrice);
   const date = new Date(order.date).toLocaleString("fr-FR", {
     dateStyle: "full",
@@ -215,6 +250,9 @@ function TransactionDetail({
     ["Membre", memberName],
     ["Opération", operation],
     ["Montant", Number.isFinite(amount) ? `${amount.toFixed(2)} €` : "—"],
+    ...(order.product === null && paymentMethodLabel(order.paymentMethod)
+      ? [["Mode de paiement", paymentMethodLabel(order.paymentMethod)]]
+      : []),
     ["Ancien solde", formatBalance(previousBalance)],
     ["Nouveau solde", formatBalance(newBalance)],
     ["Date", date],

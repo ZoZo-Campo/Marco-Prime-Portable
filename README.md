@@ -84,7 +84,7 @@ Détails (Termux, SSH, auto-démarrage, kiosque) : **INSTALLATION_TABLETTE.md**.
 | POST | `/accounting/export` | Export complet d’une soirée (ventes + recharges + compta) |
 
 **Compta réelle** : la période de la soirée se règle par date + heures de début
-et de fin (défaut 17 h → 23 h 59, fin le lendemain si l'heure de fin précède le
+et de fin (défaut 16 h 30 → 23 h 59, fin le lendemain si l'heure de fin précède le
 début). Le préremplissage des recettes utilise cette période. L'export des
 rechargements possède sa **propre plage libre date + heure** (« Du … au … »),
 avec les raccourcis « Soirée » (période de la compta) et « Journée »

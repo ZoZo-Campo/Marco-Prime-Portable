@@ -20,7 +20,7 @@ export const accountingSchema = z.object({
   status: z.enum(["draft", "closed"]),
   eventName: z.string(),
   eventDate: z.string(),
-  eventStartTime: z.string().regex(/^\d{2}:\d{2}$/).optional().default("17:00"),
+  eventStartTime: z.string().regex(/^\d{2}:\d{2}$/).optional().default("16:30"),
   eventEndTime: z.string().regex(/^\d{2}:\d{2}$/).optional().default("23:59"),
   rows: z.array(accountingRowSchema),
   productDefaults: z.array(

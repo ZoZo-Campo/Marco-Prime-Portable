@@ -14,7 +14,7 @@ export const accountingUpdateSchema = z.object({
   status: z.enum(["draft", "closed"]).default("draft"),
   eventName: z.string().trim().min(1).max(100),
   eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  eventStartTime: time.default("17:00"),
+  eventStartTime: time.default("16:30"),
   eventEndTime: time.default("23:59"),
   rows: z.array(z.object({
     id: z.string().uuid(),

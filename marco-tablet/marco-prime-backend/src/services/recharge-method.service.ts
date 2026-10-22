@@ -84,13 +84,23 @@ export interface RechargeDetails {
   orderDate?: string;
 }
 
+async function writeStored(stored: Stored) {
+  const target = filePath();
+  const temporary = `${target}.${process.pid}.tmp`;
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(temporary, `${JSON.stringify(stored, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await rename(temporary, target);
+}
+
 export function recordRechargeMethod(
   orderId: number,
   method: RechargeMethod,
   details: RechargeDetails = {},
 ): Promise<void> {
   const write = pendingWrite.catch(() => {}).then(async () => {
-    const target = filePath();
     const stored = await readStored();
     stored.entries[String(orderId)] = {
       method,
@@ -101,10 +111,17 @@ export function recordRechargeMethod(
       ...(details.orderDate ? { orderDate: details.orderDate } : {}),
       recordedAt: new Date().toISOString(),
     };
-    const temporary = `${target}.${process.pid}.tmp`;
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(temporary, `${JSON.stringify(stored, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-    await rename(temporary, target);
+    await writeStored(stored);
+  });
+  pendingWrite = write;
+  return write;
+}
+
+export function removeRechargeMethod(orderId: number): Promise<void> {
+  const write = pendingWrite.catch(() => {}).then(async () => {
+    const stored = await readStored();
+    delete stored.entries[String(orderId)];
+    await writeStored(stored);
   });
   pendingWrite = write;
   return write;

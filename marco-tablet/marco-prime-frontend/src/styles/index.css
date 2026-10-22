@@ -10,6 +10,15 @@
   html,
   body {
     @apply bg-background text-foreground overflow-hidden h-full;
+    overscroll-behavior: none;
+  }
+
+  /* Avec interactive-widget=resizes-content, le navigateur remonte le champ
+     actif au-dessus du clavier. Cette marge évite qu'il colle au bord. */
+  input,
+  textarea,
+  select {
+    scroll-margin-block: 7rem;
   }
 
   body {

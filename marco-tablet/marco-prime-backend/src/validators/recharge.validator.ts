@@ -36,3 +36,15 @@ export const rechargeReceiptSchema = z.object({
     paymentMethodRecorded: z.boolean(),
   }),
 });
+
+export const rechargeMethodUpdateSchema = z.object({
+  adminCardNumber: z.number().int().positive().safe(),
+  orderId: z.number().int().positive(),
+  paymentMethod: z.enum(["card", "cash"]),
+});
+
+export const rechargeCorrectionSchema = z.object({
+  adminCardNumber: z.number().int().positive().safe(),
+  originalOrderId: z.number().int().positive(),
+  reason: z.string().trim().min(3).max(250),
+});

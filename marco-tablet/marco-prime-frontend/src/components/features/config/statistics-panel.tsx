@@ -274,7 +274,7 @@ function ResultsView(props: ResultsViewProps) {
               props.setPeriod(event.currentTarget.value as Period)
             }
           >
-            <option value="evening">Soirée · 17h–23h59</option>
+            <option value="evening">Soirée · 16h30–23h59</option>
             <option value="today">Aujourd’hui · 00h00–23h59</option>
             <option value="week">Semaine · lundi–dimanche</option>
             <option value="custom">Dates personnalisées</option>
@@ -467,7 +467,7 @@ function getRange(period: Period, customFrom: string, customTo: string) {
   const end = new Date(start);
 
   if (period === "evening") {
-    start.setHours(17, 0, 0, 0);
+    start.setHours(16, 30, 0, 0);
     end.setHours(23, 59, 59, 999);
   } else if (period === "today") {
     end.setHours(23, 59, 59, 999);

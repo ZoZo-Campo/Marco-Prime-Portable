@@ -26,15 +26,38 @@ export function HistoryItem({
   const isRefund = order.ledgerKind === "correction-refund";
   const isCorrectedOriginal = order.ledgerKind === "corrected-original";
   const isReplacement = order.ledgerKind === "correction-replacement";
-  const isRecharge = order.product === null && !isRefund;
+  const isRechargeCorrection = order.ledgerKind === "recharge-correction";
+  const isRechargeCorrected = order.ledgerKind === "recharge-corrected";
+  const isRecharge =
+    order.product === null &&
+    !isRefund &&
+    !isRechargeCorrection &&
+    !isRechargeCorrected;
+  const rechargeMethod =
+    order.paymentMethod === "card"
+      ? " · CB"
+      : order.paymentMethod === "cash"
+        ? " · Espèces"
+        : "";
   const productName = isRefund
     ? `Remboursement correction #${order.correctionOriginalOrderId}`
     : order.product?.name ?? "Rechargement";
+  const operation = isRechargeCorrection
+    ? `Annulation rechargement #${order.correctionOriginalOrderId}`
+    : isRechargeCorrected
+      ? `Rechargement annulé${rechargeMethod}`
+      : isRecharge || isRefund
+        ? `${productName}${isRecharge ? rechargeMethod : ""}`
+        : `${order.amount}x ${productName}`;
   const ledgerAmount = Number(order.effectivePrice);
   const formattedAmount = Number.isFinite(ledgerAmount)
     ? `${ledgerAmount > 0 ? "+" : ""}${ledgerAmount.toFixed(2)} EUR`
     : "Montant invalide";
-  const hasInvalidSign = isRecharge ? ledgerAmount <= 0 : ledgerAmount >= 0;
+  const hasInvalidSign = isRechargeCorrection
+    ? ledgerAmount >= 0
+    : isRecharge || isRechargeCorrected
+      ? ledgerAmount <= 0
+      : ledgerAmount >= 0;
 
   return (
     <button
@@ -44,7 +67,7 @@ export function HistoryItem({
     >
       <span class="truncate font-medium">{memberName}</span>
       <span class="truncate text-muted-foreground">
-        {isRecharge || isRefund ? productName : `${order.amount}x ${productName}`}
+        {operation}
         {isCorrectedOriginal && " · corrigée"}
         {isReplacement && " · remplacement"}
       </span>
@@ -52,9 +75,13 @@ export function HistoryItem({
         class={`text-right font-medium ${
           hasInvalidSign
             ? "text-amber-600"
-            : isRecharge || isRefund
-              ? "text-green-600"
-              : "text-destructive"
+            : isRechargeCorrection
+              ? "text-destructive"
+              : isRechargeCorrected
+                ? "text-muted-foreground line-through"
+                : isRecharge || isRefund
+                  ? "text-green-600"
+                  : "text-destructive"
         }`}
         title={hasInvalidSign ? "Signe comptable incohérent" : undefined}
       >

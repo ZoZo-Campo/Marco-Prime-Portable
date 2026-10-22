@@ -20,14 +20,17 @@ import {
   type EnvStatus,
   type EnvValidation,
 } from "../../../schemas/env.schema";
+import type { MemberSchema } from "../../../schemas/member.schema";
 import { cn } from "../../../utils/cn";
+import { ConfigPasswordSettings } from "./config-auth-panel";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
 
-type Props = { adminCardNumber: number };
+type Props = { member: MemberSchema };
 type ConfirmStep = 0 | 1 | 2;
 
-export function SetupPanel({ adminCardNumber }: Props) {
+export function SetupPanel({ member }: Props) {
+  const adminCardNumber = member.cardNumber;
   const [status, setStatus] = useState<EnvStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -213,6 +216,7 @@ export function SetupPanel({ adminCardNumber }: Props) {
   return (
     <div class="min-h-0 flex-1 overflow-y-auto px-7 py-5">
       <div class="mx-auto flex max-w-6xl flex-col gap-5">
+        <ConfigPasswordSettings member={member} />
         <Card class="p-6">
           <div class="flex items-start gap-4">
             <span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">

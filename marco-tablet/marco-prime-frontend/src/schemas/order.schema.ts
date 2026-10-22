@@ -30,7 +30,10 @@ export const orderSchema = z.object({
     "corrected-original",
     "correction-refund",
     "correction-replacement",
+    "recharge-corrected",
+    "recharge-correction",
   ]).optional(),
+  paymentMethod: z.enum(["card", "cash"]).nullable().optional(),
   correctionOriginalOrderId: z.number().int().positive().nullable().optional(),
   correctionReason: z.string().nullable().optional(),
 });

@@ -7,6 +7,7 @@ import { auditEvent } from "../config/logger.js";
 import { StatisticsRepository } from "../repositories/statistics.repository.js";
 import { orderCorrectionService } from "../services/order-correction.service.js";
 import { readRechargeMethods } from "../services/recharge-method.service.js";
+import { rechargeCorrectionService } from "../services/recharge-correction.service.js";
 import type {
   accountingExportSchema,
   accountingReadSchema,
@@ -53,11 +54,20 @@ export class AccountingController {
     await this.requireAdmin(request.adminCardNumber);
     const from = new Date(request.from);
     const to = new Date(request.to);
-    const [accounting, sales, recharges, corrections, products, rechargeMethods] = await Promise.all([
+    const [
+      accounting,
+      sales,
+      recharges,
+      corrections,
+      rechargeCorrections,
+      products,
+      rechargeMethods,
+    ] = await Promise.all([
       accountingService.get(),
       this.statistics.findSales(from, to),
       this.statistics.findRecharges(from, to),
       orderCorrectionService.all(),
+      rechargeCorrectionService.all(),
       this.statistics.findProducts(),
       readRechargeMethods(),
     ]);
@@ -87,13 +97,27 @@ export class AccountingController {
       ...sales.map((sale) => sale.id),
       ...recharges.map((recharge) => recharge.id),
     ]);
+    const completedRechargeCorrections = rechargeCorrections.filter(
+      (correction) => correction.status === "completed",
+    );
+    const cancelledRechargeIds = new Set(
+      completedRechargeCorrections.map((correction) => correction.originalOrderId),
+    );
+    const rechargeCancellationIds = new Set(
+      completedRechargeCorrections.map((correction) => correction.cancellationOrderId),
+    );
 
     // Registre local fusionné avec la base : le mode de paiement n'existe que
     // pour les rechargements faits sur cette Marco. Les autres (réalisés sur une
     // autre caisse) restent sans mode : ils seront signalés « Pas rechargé sur
     // cette Marco » côté interface.
     const rechargeList = recharges
-      .filter((recharge) => !refundIds.has(recharge.id))
+      .filter(
+        (recharge) =>
+          !refundIds.has(recharge.id) &&
+          !cancelledRechargeIds.has(recharge.id) &&
+          !rechargeCancellationIds.has(recharge.id),
+      )
       .map((recharge) => ({
         orderId: recharge.id,
         memberId: recharge.memberId,

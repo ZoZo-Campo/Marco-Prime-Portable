@@ -2,6 +2,8 @@ import type { Context } from "hono";
 import type { z } from "zod";
 import { OrderRepository } from "../repositories/order.repository.js";
 import { orderCorrectionService } from "../services/order-correction.service.js";
+import { rechargeCorrectionService } from "../services/recharge-correction.service.js";
+import { readRechargeMethods } from "../services/recharge-method.service.js";
 import { historyQuerySchema } from "../validators/orders.validator.js";
 
 type OrdersQueryRequest = z.infer<typeof historyQuerySchema>;
@@ -20,11 +22,14 @@ export class OrderController {
       ...(from ? { from: new Date(from) } : {}),
       ...(to ? { to: new Date(to) } : {}),
     };
-    const [total, ordersList, corrections] = await Promise.all([
-      this.orderRepository.countAll(filters),
-      this.orderRepository.findMany(limit, offset, filters),
-      orderCorrectionService.all(),
-    ]);
+    const [total, ordersList, corrections, rechargeCorrections, rechargeMethods] =
+      await Promise.all([
+        this.orderRepository.countAll(filters),
+        this.orderRepository.findMany(limit, offset, filters),
+        orderCorrectionService.all(),
+        rechargeCorrectionService.all(),
+        readRechargeMethods(),
+      ]);
     const memberIds = [
       ...new Set(
         ordersList.flatMap((order) =>
@@ -54,13 +59,31 @@ export class OrderController {
           : [[correction.replacementOrderId, correction] as const],
       ),
     );
+    const completedRechargeCorrections = rechargeCorrections.filter(
+      (correction) => correction.status === "completed",
+    );
+    const rechargeOriginalById = new Map(
+      completedRechargeCorrections.map((correction) => [
+        correction.originalOrderId,
+        correction,
+      ]),
+    );
+    const rechargeCancellationById = new Map(
+      completedRechargeCorrections.map((correction) => [
+        correction.cancellationOrderId,
+        correction,
+      ]),
+    );
 
     return c.json({
       data: ordersList.map((order) => {
         const refund = refundById.get(order.id);
         const replacement = replacementById.get(order.id);
         const original = originalById.get(order.id);
-        const correction = original ?? refund ?? replacement;
+        const rechargeOriginal = rechargeOriginalById.get(order.id);
+        const rechargeCancellation = rechargeCancellationById.get(order.id);
+        const correction =
+          original ?? refund ?? replacement ?? rechargeOriginal ?? rechargeCancellation;
         return {
           ...order,
           effectivePrice: normalizeLedgerPrice(
@@ -70,18 +93,30 @@ export class OrderController {
           ),
           previousBalance: balances.get(order.id)?.previousBalance ?? null,
           newBalance: balances.get(order.id)?.newBalance ?? null,
-          ledgerKind: refund
-            ? "correction-refund"
-            : replacement
-              ? "correction-replacement"
-              : correctedOriginals.has(order.id)
-                ? "corrected-original"
-                : order.product
-                  ? "purchase"
-                  : "recharge",
+          ledgerKind: rechargeCancellation
+            ? "recharge-correction"
+            : rechargeOriginal
+              ? "recharge-corrected"
+              : refund
+                ? "correction-refund"
+                : replacement
+                  ? "correction-replacement"
+                  : correctedOriginals.has(order.id)
+                    ? "corrected-original"
+                    : order.product
+                      ? "purchase"
+                      : "recharge",
           correctionOriginalOrderId:
-            refund?.originalOrderId ?? replacement?.originalOrderId ?? null,
+            refund?.originalOrderId ??
+            replacement?.originalOrderId ??
+            rechargeOriginal?.originalOrderId ??
+            rechargeCancellation?.originalOrderId ??
+            null,
           correctionReason: correction?.reason ?? null,
+          paymentMethod:
+            order.product === null
+              ? (rechargeMethods[String(order.id)] ?? null)
+              : null,
         };
       }),
       pagination: {

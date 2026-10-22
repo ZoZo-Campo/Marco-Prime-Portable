@@ -305,6 +305,102 @@ export class OrderRepository {
     });
   }
 
+  async findRechargeById(orderId: number) {
+    const [recharge] = await db
+      .select({
+        id: orders.id,
+        productId: orders.productId,
+        memberId: orders.memberId,
+        price: orders.price,
+        amount: orders.amount,
+        date: orders.date,
+        memberFirstName: members.firstName,
+        memberLastName: members.lastName,
+        memberCardNumber: members.cardNumber,
+      })
+      .from(orders)
+      .leftJoin(members, eq(orders.memberId, members.id))
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    return recharge ?? null;
+  }
+
+  async cancelRechargeTransaction(originalOrderId: number) {
+    return await db.transaction(async (tx) => {
+      const [original] = await tx
+        .select({
+          id: orders.id,
+          productId: orders.productId,
+          memberId: orders.memberId,
+          price: orders.price,
+          amount: orders.amount,
+        })
+        .from(orders)
+        .where(eq(orders.id, originalOrderId))
+        .limit(1)
+        .for("update");
+
+      if (!original) throw new Error("RECHARGE_CORRECTION_NOT_FOUND");
+      if (
+        original.productId !== null ||
+        original.amount !== 1 ||
+        original.memberId === null
+      ) {
+        throw new Error("RECHARGE_CORRECTION_NOT_A_RECHARGE");
+      }
+      const amountCents = toCents(original.price);
+      if (amountCents === null || amountCents <= 0) {
+        throw new Error("RECHARGE_CORRECTION_INVALID_AMOUNT");
+      }
+
+      const [lockedMember] = await tx
+        .select({ balance: members.balance })
+        .from(members)
+        .where(eq(members.id, original.memberId))
+        .limit(1)
+        .for("update");
+      if (!lockedMember) {
+        throw new Error("RECHARGE_CORRECTION_MEMBER_NOT_FOUND");
+      }
+
+      const currentBalanceCents = toCents(lockedMember.balance);
+      if (currentBalanceCents === null) {
+        throw new Error("RECHARGE_CORRECTION_INVALID_BALANCE");
+      }
+      const newBalanceCents = currentBalanceCents - amountCents;
+      if (newBalanceCents < 0) {
+        throw new Error("RECHARGE_CORRECTION_INSUFFICIENT_BALANCE");
+      }
+      if (Math.abs(newBalanceCents) > MAX_DATABASE_MONEY_CENTS) {
+        throw new Error("RECHARGE_CORRECTION_INVALID_BALANCE");
+      }
+
+      const [cancellation] = await tx
+        .insert(orders)
+        .values({
+          productId: null,
+          memberId: original.memberId,
+          price: fromCents(-amountCents),
+          amount: 1,
+        })
+        .$returningId();
+
+      await tx
+        .update(members)
+        .set({ balance: fromCents(newBalanceCents) })
+        .where(eq(members.id, original.memberId));
+
+      return {
+        originalOrderId,
+        cancellationOrderId: cancellation.id,
+        memberId: original.memberId,
+        amount: fromCents(amountCents),
+        previousBalance: lockedMember.balance,
+        newBalance: fromCents(newBalanceCents),
+      };
+    });
+  }
+
   async correctPurchaseTransaction(
     originalOrderId: number,
     replacementProductId: number | null,

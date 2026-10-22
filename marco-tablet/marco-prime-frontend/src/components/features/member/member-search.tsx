@@ -9,7 +9,7 @@ import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
 import { QrScanButton } from "./qr-scan-button";
 export function MemberSearch() {
-  const { pause, resume, select, submitCardNumber } = useMember();
+  const { pause, resume, submitCardNumber } = useMember();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [promotion, setPromotion] = useState("");
@@ -117,7 +117,10 @@ export function MemberSearch() {
 
   const choose = (member: MemberSchema) => {
     shopping.reset();
-    select(member);
+    // Ne jamais réutiliser l'objet des « membres récents » : son solde peut
+    // dater d'avant un rechargement. On refetch toujours la fiche à jour.
+    submitCardNumber(String(member.cardNumber));
+    resume();
     setOpen(false);
   };
 
