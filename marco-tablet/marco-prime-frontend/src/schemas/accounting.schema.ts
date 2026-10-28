@@ -11,7 +11,11 @@ export const accountingRowSchema = z.object({
   units: decimalStringSchema.optional().default("0"),
   purchasePricePerLiter: decimalStringSchema,
   revenue: decimalStringSchema,
+  salePrice: decimalStringSchema.optional().default("0"),
+  saleFormat: z.enum(["unit", "25cl", "33cl", "50cl", "60cl"]).optional().default("unit"),
   cost: moneyStringSchema,
+  expectedRevenue: moneyStringSchema.optional().default("0"),
+  variance: moneyStringSchema.optional().default("0"),
   result: moneyStringSchema,
 });
 
@@ -35,7 +39,9 @@ export const accountingSchema = z.object({
     liters: decimalStringSchema,
     units: decimalStringSchema.optional().default("0"),
     cost: moneyStringSchema,
+    expectedRevenue: moneyStringSchema.optional().default("0"),
     revenue: moneyStringSchema,
+    variance: moneyStringSchema.optional().default("0"),
     result: moneyStringSchema,
   }),
 });

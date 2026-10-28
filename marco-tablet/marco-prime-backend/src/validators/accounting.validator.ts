@@ -31,6 +31,8 @@ export const accountingUpdateSchema = z.object({
     units: decimal(2).optional().default("0").refine((value) => Number(value) <= 100_000),
     purchasePricePerLiter: decimal(4).refine((value) => Number(value) <= 100_000),
     revenue: decimal(2).refine((value) => Number(value) <= 9_999_999.99),
+    salePrice: decimal(2).optional().default("0").refine((value) => Number(value) <= 100_000),
+    saleFormat: z.enum(["unit", "25cl", "33cl", "50cl", "60cl"]).optional().default("unit"),
   })).max(200).refine(
     (rows) => new Set(rows.map((row) => row.id)).size === rows.length,
     { message: "Accounting row identifiers must be unique" },

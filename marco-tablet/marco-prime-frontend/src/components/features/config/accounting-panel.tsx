@@ -18,6 +18,11 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { apiHeaders, apiUrl } from "../../../config/api";
 import {
+  beerFormatFromProductName,
+  findBeerPriceReference,
+  SALE_FORMAT_LITERS,
+} from "../../../constants/beer-prices";
+import {
   accountingExportSchema,
   accountingSchema,
   type Accounting,
@@ -45,12 +50,14 @@ type EditableRow = Pick<
   | "units"
   | "purchasePricePerLiter"
   | "revenue"
+  | "salePrice"
+  | "saleFormat"
 >;
 type AccountingStatus = "draft" | "closed";
 type DialogName = "new-event" | "close-event" | null;
 
-// Type Fouaille des bouteilles : comptées en unités dans la compta, pas en litres.
-const BOTTLE_TYPE_ID = 9;
+// Types Fouaille : les pressions (fûts) se comptent en litres, tout le reste en unités.
+const KEG_TYPE_ID = 1;
 const DEFAULT_START_TIME = "16:30";
 const DEFAULT_END_TIME = "23:59";
 
@@ -101,6 +108,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   const [lastExportSignature, setLastExportSignature] = useState<string | null>(null);
   const loaded = useRef(false);
   const lastSavedSignature = useRef("");
+  const lastFailedSignature = useRef("");
 
   const draft = useMemo<AccountingDraft>(
     () => ({ status, eventName, eventDate, eventStartTime, eventEndTime, rows }),
@@ -115,10 +123,6 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   );
   const archivedProducts = useMemo(
     () => products.filter((product) => !product.available).sort(compareProducts),
-    [products],
-  );
-  const bottleProductIds = useMemo(
-    () => new Set(products.filter((product) => product.productTypeId === BOTTLE_TYPE_ID).map((product) => product.id)),
     [products],
   );
 
@@ -143,7 +147,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
 
       const value = accountingSchema.parse(await accountingResponse.json());
       const catalogue = productCostListSchema.parse(await productsResponse.json());
-      const editableRows = toEditableRows(value, catalogue);
+      const nextDefaults = defaultsMap(value);
+      const editableRows = toEditableRows(value, catalogue, nextDefaults);
       const nextDraft = {
         status: value.status,
         eventName: value.eventName,
@@ -154,7 +159,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       };
       setAccounting(value);
       setProducts(catalogue);
-      setPurchasePriceDefaults(defaultsMap(value));
+      setPurchasePriceDefaults(nextDefaults);
       setStatus(value.status);
       setEventName(value.eventName);
       setEventDate(value.eventDate);
@@ -186,8 +191,8 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       return null;
     }
     setSaving(true);
+    const requestSignature = signature(nextDraft);
     try {
-      const requestSignature = signature(nextDraft);
       const response = await fetch(apiUrl("accounting"), {
         method: "PUT",
         headers: apiHeaders({ "Content-Type": "application/json" }),
@@ -206,9 +211,11 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       setAccounting(value);
       setPurchasePriceDefaults(defaultsMap(value));
       lastSavedSignature.current = requestSignature;
+      lastFailedSignature.current = "";
       if (!quiet) setMessage("Comptabilité enregistrée.");
       return value;
     } catch {
+      if (quiet) lastFailedSignature.current = requestSignature;
       setMessage("Impossible d’enregistrer la comptabilité.");
       return null;
     } finally {
@@ -218,6 +225,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
 
   useEffect(() => {
     if (loading || saving || isClosed || !loaded.current || !hasUnsavedChanges || !isValidDraft(draft)) return;
+    if (lastFailedSignature.current === draftSignature) return;
     const timer = window.setTimeout(() => void persist(draft, true), 800);
     return () => window.clearTimeout(timer);
   }, [draftSignature, loading, saving, isClosed]);
@@ -225,7 +233,9 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
   const save = async () => {
     const value = await persist(draft);
     if (!value) return;
-    const editableRows = toEditableRows(value, products);
+    const nextDefaults = defaultsMap(value);
+    const editableRows = toEditableRows(value, products, nextDefaults);
+    setPurchasePriceDefaults(nextDefaults);
     setRows(editableRows);
     setEventName(value.eventName);
     setEventDate(value.eventDate);
@@ -249,16 +259,51 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
 
   const chooseProduct = (rowId: string, value: string) => {
     const product = products.find((item) => item.id === Number(value));
-    setRows((current) => current.map((row) =>
-      row.id === rowId
-        ? {
-            ...row,
-            productId: product?.id ?? null,
-            label: product?.name ?? "",
-            purchasePricePerLiter: product ? (purchasePriceDefaults.get(product.id) ?? "0") : "0",
-          }
-        : row,
-    ));
+    setRows((current) => current.map((row) => {
+      if (row.id !== rowId) return row;
+      if (!product) {
+        return {
+          ...row,
+          productId: null,
+          label: "",
+          liters: "0",
+          units: "0",
+          purchasePricePerLiter: "0",
+          salePrice: "0",
+          saleFormat: "unit",
+        };
+      }
+      const isKeg = product.productTypeId === KEG_TYPE_ID;
+      const wasUnitQuantity = Number(row.units) > 0 ? row.units : row.liters;
+      const wasLitreQuantity = Number(row.liters) > 0 ? row.liters : row.units;
+      const format = isKeg ? beerFormatFromProductName(product.name) : "unit";
+      const reference = findBeerPriceReference(product.name, isKeg ? "keg" : "bottle");
+      return {
+        ...row,
+        productId: product.id,
+        label: product.name,
+        liters: isKeg ? wasLitreQuantity : "0",
+        units: isKeg ? "0" : wasUnitQuantity,
+        purchasePricePerLiter: purchasePriceDefaults.get(product.id)
+          ?? reference?.purchasePrice
+          ?? (isKeg ? "0" : product.costPrice ?? "0"),
+        salePrice: reference?.salePrices[format] ?? product.sellingPrice,
+        saleFormat: format,
+      };
+    }));
+    setMessage(null);
+  };
+
+  const changeSaleFormat = (rowId: string, format: EditableRow["saleFormat"]) => {
+    setRows((current) => current.map((row) => {
+      if (row.id !== rowId) return row;
+      const reference = findBeerPriceReference(row.label, "keg");
+      return {
+        ...row,
+        saleFormat: format,
+        salePrice: reference?.salePrices[format] ?? row.salePrice,
+      };
+    }));
     setMessage(null);
   };
 
@@ -345,7 +390,12 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           units: "0",
           purchasePricePerLiter: row.productId === null
             ? row.purchasePricePerLiter
-            : (purchasePriceDefaults.get(row.productId) ?? row.purchasePricePerLiter),
+            : (purchasePriceDefaults.get(row.productId)
+              ?? findBeerPriceReference(
+                row.label,
+                row.saleFormat === "unit" ? "bottle" : "keg",
+              )?.purchasePrice
+              ?? row.purchasePricePerLiter),
           revenue: "0",
         }))
       : [];
@@ -399,7 +449,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const exported = accountingExportSchema.parse(await response.json());
-      const files = createExportFiles(exported, products);
+      const files = createExportFiles(exported);
       const directoryPicker = (window as FilePickerWindow).showDirectoryPicker;
       if (directoryPicker) {
         try {
@@ -486,8 +536,6 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
 
   const totals = calculateTotals(rows);
   const endIsNextDay = eventEndTime <= eventStartTime;
-  const isBottleRow = (row: EditableRow) =>
-    row.productId !== null && bottleProductIds.has(row.productId);
   const pricesReady = rows.length > 0 && rows.every(hasPositivePrice);
   const quantitiesReady = rows.length > 0 && rows.every(hasPositiveQuantity);
   const exportReady = lastExportSignature === draftSignature;
@@ -504,7 +552,7 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
           <div class="mr-auto">
             <h1 class="flex items-center gap-3 text-2xl font-bold"><Calculator /> Compta réelle</h1>
             <p class="mt-1 text-muted-foreground">
-              Saisissez les quantités réellement écoulées — litres ou unités pour les bouteilles. Les recettes Marco peuvent être préremplies puis corrigées manuellement.
+              Saisissez les litres réellement écoulés pour les fûts et les unités pour les autres produits. Les prix du PDF préremplissent le prix de vente ; le CA attendu et l’écart se calculent automatiquement.
             </p>
             <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
               <span class={`rounded-full px-3 py-1 font-medium ${isClosed ? "bg-green-500/15 text-green-400" : "bg-amber-500/15 text-amber-300"}`}>
@@ -598,17 +646,20 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
             </span>
           </div>
           <div class="overflow-x-auto">
-            <table class="w-full min-w-[960px] border-collapse text-left">
+            <table class="w-full min-w-[1280px] border-collapse text-left">
               <thead class="bg-muted/50">
                 <tr>
                   <th class="p-3">Produit Fouaille</th><th class="p-3">Quantité réelle</th>
                   <th class="p-3">Prix d'achat</th><th class="p-3">Coût total</th>
-                  <th class="p-3">Recettes réelles</th><th class="p-3">Résultat</th><th />
+                  <th class="p-3">Format</th><th class="p-3">Prix de vente</th>
+                  <th class="p-3">CA attendu</th><th class="p-3">Recettes réelles</th>
+                  <th class="p-3">Écart</th><th class="p-3">Résultat</th><th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
                   const values = calculateRow(row);
+                  const isUnit = row.saleFormat === "unit";
                   const selectedElsewhere = new Set(rows.flatMap((item) =>
                     item.id !== row.id && item.productId !== null ? [item.productId] : [],
                   ));
@@ -634,21 +685,48 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
                       <td class="p-2">
                         <span class="flex items-center gap-2">
                           <NumberInput
-                            value={isBottleRow(row) ? row.units : row.liters}
+                            value={isUnit ? row.units : row.liters}
                             disabled={isClosed}
-                            onInput={(value) => updateRow(row.id, isBottleRow(row) ? "units" : "liters", value)}
+                            onInput={(value) => updateRow(row.id, isUnit ? "units" : "liters", value)}
                           />
-                          <span class="min-w-14 text-xs text-muted-foreground">{isBottleRow(row) ? "unité" : "litre"}</span>
+                          <span class="min-w-14 text-xs text-muted-foreground">{isUnit ? "unité" : "litre"}</span>
                         </span>
                       </td>
                       <td class="p-2">
                         <span class="flex items-center gap-2">
                           <NumberInput value={row.purchasePricePerLiter} disabled={isClosed} onInput={(value) => updateRow(row.id, "purchasePricePerLiter", value)} />
-                          <span class="min-w-16 text-xs text-muted-foreground">{isBottleRow(row) ? "/ unité" : "/ L"}</span>
+                          <span class="min-w-16 text-xs text-muted-foreground">{isUnit ? "/ unité" : "/ L"}</span>
                         </span>
                       </td>
                       <td class="p-3 font-medium">{formatMoney(values.cost)}</td>
+                      <td class="p-2">
+                        {isUnit ? (
+                          <span class="inline-flex min-h-10 items-center px-2 text-sm text-muted-foreground">Unité</span>
+                        ) : (
+                          <select
+                            class="w-28 border bg-input px-2 py-2 disabled:opacity-60"
+                            value={row.saleFormat}
+                            disabled={isClosed}
+                            onChange={(event) => changeSaleFormat(row.id, event.currentTarget.value as EditableRow["saleFormat"])}
+                          >
+                            <option value="25cl">25 cl</option>
+                            <option value="33cl">33 cl</option>
+                            <option value="50cl">50 cl</option>
+                            <option value="60cl">60 cl</option>
+                          </select>
+                        )}
+                      </td>
+                      <td class="p-2">
+                        <span class="flex items-center gap-2">
+                          <NumberInput value={row.salePrice} disabled={isClosed} onInput={(value) => updateRow(row.id, "salePrice", value)} />
+                          <span class="min-w-14 text-xs text-muted-foreground">{isUnit ? "/ unité" : `/${row.saleFormat}`}</span>
+                        </span>
+                      </td>
+                      <td class="p-3 font-medium">{formatMoney(values.expectedRevenue)}</td>
                       <td class="p-2"><NumberInput value={row.revenue} disabled={isClosed} onInput={(value) => updateRow(row.id, "revenue", value)} /></td>
+                      <td class={`p-3 font-bold ${values.variance < 0 ? "text-destructive" : "text-green-400"}`}>
+                        {formatMoney(values.variance)}
+                      </td>
                       <td class={`p-3 font-bold ${values.result < 0 ? "text-destructive" : "text-green-400"}`}>
                         {formatMoney(values.result)}
                       </td>
@@ -668,13 +746,19 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
               <tfoot class="border-t-2 bg-muted/40 font-bold">
                 <tr>
                   <td class="p-3">TOTAL</td>
-                  <td class="p-3">{formatLiters(totals.liters)}{Number(totals.units) > 0 && <> · {formatUnits(totals.units)}</>}</td><td />
-                  <td class="p-3">{formatMoney(totals.cost)}</td><td class="p-3">{formatMoney(totals.revenue)}</td>
+                  <td class="p-3">{formatLiters(totals.liters)}{Number(totals.units) > 0 && <> · {formatUnits(totals.units)}</>}</td>
+                  <td /><td class="p-3">{formatMoney(totals.cost)}</td>
+                  <td /><td />
+                  <td class="p-3">{formatMoney(totals.expectedRevenue)}</td><td class="p-3">{formatMoney(totals.revenue)}</td>
+                  <td class={`p-3 ${totals.variance < 0 ? "text-destructive" : "text-green-400"}`}>{formatMoney(totals.variance)}</td>
                   <td class="p-3">{formatMoney(totals.result)}</td><td />
                 </tr>
               </tfoot>
             </table>
           </div>
+          <p class="border-t px-3 py-2 text-xs text-muted-foreground">
+            CA attendu : litres ÷ format × prix de vente pour les fûts, unités × prix de vente pour les autres produits. Écart = recettes réelles − CA attendu.
+          </p>
           {rows.length === 0 && <p class="p-8 text-center text-muted-foreground">Ajoutez un produit ou préremplissez les ventes pour commencer.</p>}
         </Card>
 
@@ -771,8 +855,9 @@ export function AccountingPanel({ adminCardNumber }: AccountingPanelProps) {
       {dialog === "close-event" && (
         <Modal title="Clôture guidée de la soirée" onClose={() => setDialog(null)}>
           <div class="space-y-3">
-            <ChecklistLine ready={pricesReady} label="Prix d’achat vérifiés" detail="Chaque produit doit avoir un prix d’achat (par litre, ou par unité pour les bouteilles) supérieur à zéro." />
-            <ChecklistLine ready={quantitiesReady} label="Quantités réelles saisies" detail="Chaque ligne conservée doit contenir une quantité mesurée (litres, ou unités pour les bouteilles)." />
+            <ChecklistLine ready={pricesReady} label="Prix d’achat vérifiés" detail="Chaque produit doit avoir un prix d’achat (par litre pour les fûts, par unité pour les autres) supérieur à zéro." />
+            <ChecklistLine ready={quantitiesReady} label="Quantités réelles saisies" detail="Chaque ligne conservée doit contenir une quantité mesurée (litres pour les fûts, unités pour les autres produits)." />
+            <ChecklistLine ready={rows.length > 0 && rows.every(hasPositiveSalePrice)} optional label="Prix de vente renseignés" detail="Les prix du PDF servent à calculer le CA attendu et l’écart. Un prix à zéro reste possible pour un produit offert." />
             <ChecklistLine ready={lastPrefillAt !== null} optional label="Ventes Marco vérifiées" detail="Préremplissez les recettes ou vérifiez-les manuellement." />
             <ChecklistLine ready={exportReady} label="Export et sauvegarde créés" detail="Les 4 CSV et la sauvegarde JSON doivent correspondre à la dernière saisie." />
           </div>
@@ -858,18 +943,62 @@ function NumberInput({ value, disabled, onInput }: { value: string; disabled: bo
 }
 
 function newRow(product: ProductCost, defaults: Map<number, string>): EditableRow {
+  const isKeg = product.productTypeId === KEG_TYPE_ID;
+  const saleFormat: EditableRow["saleFormat"] = isKeg ? beerFormatFromProductName(product.name) : "unit";
+  const reference = findBeerPriceReference(product.name, isKeg ? "keg" : "bottle");
   return {
-    id: crypto.randomUUID(), productId: product.id, label: product.name, liters: "0", units: "0",
-    purchasePricePerLiter: defaults.get(product.id) ?? "0", revenue: "0",
+    id: crypto.randomUUID(),
+    productId: product.id,
+    label: product.name,
+    liters: "0",
+    units: "0",
+    purchasePricePerLiter: defaults.get(product.id)
+      ?? reference?.purchasePrice
+      ?? (isKeg ? "0" : product.costPrice ?? "0"),
+    revenue: "0",
+    salePrice: reference?.salePrices[saleFormat] ?? product.sellingPrice,
+    saleFormat,
   };
 }
 
-function toEditableRows(value: Accounting, catalogue: ProductCost[]) {
-  return value.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({
-    id,
-    productId: productId ?? catalogue.find((product) => normalizeSearch(product.name) === normalizeSearch(label))?.id ?? null,
-    label, liters, units: units ?? "0", purchasePricePerLiter, revenue,
-  }));
+function toEditableRows(value: Accounting, catalogue: ProductCost[], defaults: Map<number, string>) {
+  return value.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue, salePrice, saleFormat }) => {
+    const product = productId === null
+      ? catalogue.find((entry) => normalizeSearch(entry.name) === normalizeSearch(label))
+      : catalogue.find((entry) => entry.id === productId);
+    const isKeg = product?.productTypeId === KEG_TYPE_ID;
+    let nextLiters = liters;
+    let nextUnits = units ?? "0";
+    if (isKeg && Number(nextLiters) === 0 && Number(nextUnits) > 0) {
+      nextLiters = nextUnits;
+      nextUnits = "0";
+    } else if (product && !isKeg && Number(nextUnits) === 0 && Number(nextLiters) > 0) {
+      nextUnits = nextLiters;
+      nextLiters = "0";
+    }
+    const format: EditableRow["saleFormat"] = isKeg
+      ? (saleFormat && saleFormat !== "unit" ? saleFormat : beerFormatFromProductName(product?.name ?? label))
+      : "unit";
+    const reference = findBeerPriceReference(product?.name ?? label, isKeg ? "keg" : "bottle");
+    return {
+      id,
+      productId: product?.id ?? null,
+      label,
+      liters: nextLiters,
+      units: nextUnits,
+      purchasePricePerLiter: Number(normalizeNumber(purchasePricePerLiter) ?? 0) > 0
+        ? purchasePricePerLiter
+        : (product ? defaults.get(product.id) : undefined)
+          ?? reference?.purchasePrice
+          ?? (product && !isKeg ? product.costPrice ?? undefined : undefined)
+          ?? purchasePricePerLiter,
+      revenue,
+      salePrice: salePrice && Number(salePrice) > 0
+        ? salePrice
+        : reference?.salePrices[format] ?? product?.sellingPrice ?? salePrice ?? "0",
+      saleFormat: format,
+    };
+  });
 }
 
 function defaultsMap(accounting: Accounting) {
@@ -880,7 +1009,7 @@ function signature(draft: AccountingDraft) {
   return JSON.stringify({
     status: draft.status, eventName: draft.eventName, eventDate: draft.eventDate,
     eventStartTime: draft.eventStartTime, eventEndTime: draft.eventEndTime,
-    rows: draft.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, units, purchasePricePerLiter, revenue })),
+    rows: draft.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue, salePrice, saleFormat }) => ({ id, productId, label, liters, units, purchasePricePerLiter, revenue, salePrice, saleFormat })),
   });
 }
 
@@ -893,21 +1022,45 @@ function normalizeRows(rows: EditableRow[]) {
     units: normalizeNumber(row.units) as string,
     purchasePricePerLiter: normalizeNumber(row.purchasePricePerLiter) as string,
     revenue: normalizeNumber(row.revenue) as string,
+    salePrice: normalizeNumber(row.salePrice) as string,
+    saleFormat: row.saleFormat,
   }));
 }
 
 function isValidDraft(draft: AccountingDraft) {
   const productIds = draft.rows.flatMap((row) => row.productId === null ? [] : [row.productId]);
   return draft.eventName.trim() !== ""
-    && /^\d{4}-\d{2}-\d{2}$/.test(draft.eventDate)
-    && /^\d{2}:\d{2}$/.test(draft.eventStartTime)
-    && /^\d{2}:\d{2}$/.test(draft.eventEndTime)
-    && draft.rows.every((row) => row.productId !== null && row.label.trim() !== ""
-      && normalizeNumber(row.liters) !== null
-      && normalizeNumber(row.units) !== null
-      && normalizeNumber(row.purchasePricePerLiter) !== null
-      && normalizeNumber(row.revenue) !== null)
+    && draft.eventName.trim().length <= 100
+    && isValidCalendarDate(draft.eventDate)
+    && isValidTime(draft.eventStartTime)
+    && isValidTime(draft.eventEndTime)
+    && draft.rows.length <= 200
+    && draft.rows.every((row) => row.productId !== null
+      && row.label.trim() !== ""
+      && row.label.trim().length <= 100
+      && decimalWithin(row.liters, 3, 100_000)
+      && decimalWithin(row.units, 2, 100_000)
+      && decimalWithin(row.purchasePricePerLiter, 4, 100_000)
+      && decimalWithin(row.salePrice, 2, 100_000)
+      && decimalWithin(row.revenue, 2, 9_999_999.99))
     && new Set(productIds).size === draft.rows.length;
+}
+
+function isValidCalendarDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function isValidTime(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function decimalWithin(value: string, decimals: number, max: number) {
+  const normalized = normalizeNumber(value);
+  if (normalized === null) return false;
+  const fraction = normalized.split(".")[1];
+  return (fraction?.length ?? 0) <= decimals && Number(normalized) <= max;
 }
 
 function normalizeNumber(value: string) {
@@ -923,13 +1076,23 @@ function quantityOf(row: EditableRow) {
 
 function calculateRow(row: EditableRow) {
   const quantity = quantityOf(row);
+  const liters = Number(normalizeNumber(row.liters) ?? 0);
+  const units = Number(normalizeNumber(row.units) ?? 0);
   const cost = quantity * Number(normalizeNumber(row.purchasePricePerLiter) ?? 0);
+  const salePrice = Number(normalizeNumber(row.salePrice) ?? 0);
+  const expectedRevenue = row.saleFormat === "unit"
+    ? quantity * salePrice
+    : (liters / SALE_FORMAT_LITERS[row.saleFormat]) * salePrice;
   const revenue = Number(normalizeNumber(row.revenue) ?? 0);
   return {
-    liters: Number(normalizeNumber(row.liters) ?? 0),
-    units: Number(normalizeNumber(row.units) ?? 0),
+    quantity,
+    liters,
+    units,
     cost,
+    salePrice,
+    expectedRevenue,
     revenue,
+    variance: revenue - expectedRevenue,
     result: revenue - cost,
   };
 }
@@ -937,12 +1100,23 @@ function calculateRow(row: EditableRow) {
 function calculateTotals(rows: EditableRow[]) {
   return rows.reduce((sum, row) => {
     const value = calculateRow(row);
-    return { liters: sum.liters + value.liters, units: sum.units + value.units, cost: sum.cost + value.cost, revenue: sum.revenue + value.revenue, result: sum.result + value.result };
-  }, { liters: 0, units: 0, cost: 0, revenue: 0, result: 0 });
+    return {
+      liters: sum.liters + value.liters,
+      units: sum.units + value.units,
+      cost: sum.cost + value.cost,
+      expectedRevenue: sum.expectedRevenue + value.expectedRevenue,
+      revenue: sum.revenue + value.revenue,
+      variance: sum.variance + value.variance,
+      result: sum.result + value.result,
+    };
+  }, { liters: 0, units: 0, cost: 0, expectedRevenue: 0, revenue: 0, variance: 0, result: 0 });
 }
 
 function hasPositivePrice(row: EditableRow) {
   return Number(normalizeNumber(row.purchasePricePerLiter) ?? 0) > 0;
+}
+function hasPositiveSalePrice(row: EditableRow) {
+  return Number(normalizeNumber(row.salePrice) ?? 0) > 0;
 }
 function hasPositiveQuantity(row: EditableRow) {
   return quantityOf(row) > 0;
@@ -976,7 +1150,7 @@ function formatDateFr(value: string) {
 }
 
 function productFamily(value: string) {
-  return normalizeSearch(value).replace(/\b(?:25|33|50)\s*c?l\b/g, "").replace(/\b(?:demi|pinte)\b/g, "").replace(/\s+/g, " ").trim();
+  return normalizeSearch(value).replace(/\b(?:25|33|50|60)\s*c?l\b/g, "").replace(/\b(?:demi|pinte)\b/g, "").replace(/\s+/g, " ").trim();
 }
 function normalizeSearch(value: string) {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr").trim();
@@ -985,10 +1159,19 @@ function compareProducts(left: ProductCost, right: ProductCost) {
   return left.name.localeCompare(right.name, "fr", { sensitivity: "base" });
 }
 
-function createExportFiles(exported: AccountingExport, products: ProductCost[]) {
-  const bottleProductIds = new Set(products.filter((product) => product.productTypeId === BOTTLE_TYPE_ID).map((product) => product.id));
+function createExportFiles(exported: AccountingExport) {
   const stamp = `-${formatDateFr(exported.accounting.eventDate)}`;
-  const accountingRows = exported.accounting.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue }) => ({ id, productId, label, liters, units: units ?? "0", purchasePricePerLiter, revenue }));
+  const accountingRows: EditableRow[] = exported.accounting.rows.map(({ id, productId, label, liters, units, purchasePricePerLiter, revenue, salePrice, saleFormat }) => ({
+    id,
+    productId,
+    label,
+    liters,
+    units: units ?? "0",
+    purchasePricePerLiter,
+    revenue,
+    salePrice: salePrice ?? "0",
+    saleFormat: saleFormat ?? "unit",
+  }));
   const accountingCsv = createAccountingCsv(
     exported.accounting.eventName,
     exported.accounting.eventDate,
@@ -996,7 +1179,6 @@ function createExportFiles(exported: AccountingExport, products: ProductCost[]) 
     exported.accounting.eventEndTime,
     accountingRows,
     calculateTotals(accountingRows),
-    bottleProductIds,
   );
   const salesCsv = tableCsv(
     ["Transaction", "Date", "Membre", "Produit", "Catégorie", "Quantité", "Montant débité", "Statut"],
@@ -1033,26 +1215,28 @@ function createAccountingCsv(
   eventEndTime: string,
   rows: EditableRow[],
   totals: ReturnType<typeof calculateTotals>,
-  bottleProductIds: Set<number>,
 ) {
   const lines: Array<Array<string | number>> = [
     ["Événement", eventName], ["Date", formatDateFr(eventDate)], ["Période", `${eventStartTime} – ${eventEndTime}`], [],
-    ["Produit", "Quantité", "Unité", "Prix d’achat", "Coût total", "Recettes réelles", "Résultat"],
+    ["Produit", "Format", "Quantité", "Unité", "Prix d’achat", "Coût total", "Prix de vente", "CA attendu", "Recettes réelles", "Écart", "Résultat"],
     ...rows.map((row) => {
       const value = calculateRow(row);
-      const bottle = row.productId !== null && bottleProductIds.has(row.productId);
-      const quantity = bottle ? value.units : value.liters;
+      const isUnit = row.saleFormat === "unit";
       return [
         row.label,
-        csvNumber(quantity, bottle ? 2 : 3),
-        bottle ? "unité" : "litre",
+        formatSaleFormat(row.saleFormat),
+        csvNumber(value.quantity, isUnit ? 2 : 3),
+        isUnit ? "unité" : "litre",
         csvNumber(Number(row.purchasePricePerLiter.replace(",", ".")), 4),
         csvNumber(value.cost, 2),
+        csvNumber(value.salePrice, 2),
+        csvNumber(value.expectedRevenue, 2),
         csvNumber(value.revenue, 2),
+        csvNumber(value.variance, 2),
         csvNumber(value.result, 2),
       ];
     }),
-    ["TOTAL", `${formatLiters(totals.liters)} + ${formatUnits(totals.units)}`, "", csvNumber(totals.cost, 2), csvNumber(totals.revenue, 2), csvNumber(totals.result, 2)],
+    ["TOTAL", "", "", `${formatLiters(totals.liters)} + ${formatUnits(totals.units)}`, "", csvNumber(totals.cost, 2), "", csvNumber(totals.expectedRevenue, 2), csvNumber(totals.revenue, 2), csvNumber(totals.variance, 2), csvNumber(totals.result, 2)],
   ];
   return lines.map((line) => line.map((cell) => csvCell(String(cell))).join(";")).join("\r\n");
 }
@@ -1101,4 +1285,7 @@ function formatLiters(value: number) {
 }
 function formatUnits(value: number) {
   return `${value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} unité${value > 1 ? "s" : ""}`;
+}
+function formatSaleFormat(format: EditableRow["saleFormat"]) {
+  return format === "unit" ? "unité" : `${format.replace("cl", "")} cl`;
 }

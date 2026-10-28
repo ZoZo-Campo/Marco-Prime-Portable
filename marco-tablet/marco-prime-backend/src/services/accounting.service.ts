@@ -11,6 +11,8 @@ const rowSchema = z.object({
   units: z.string().default("0"),
   purchasePricePerLiter: z.string(),
   revenue: z.string(),
+  salePrice: z.string().default("0"),
+  saleFormat: z.enum(["unit", "25cl", "33cl", "50cl", "60cl"]).default("unit"),
 });
 
 const productDefaultSchema = z.object({
@@ -38,7 +40,7 @@ export type AccountingInput = {
   eventDate: string;
   eventStartTime?: string;
   eventEndTime?: string;
-  rows: Array<Omit<z.infer<typeof rowSchema>, "productId"> & { productId: number }>;
+  rows: Array<z.input<typeof rowSchema> & { productId: number }>;
 };
 
 const emptyAccounting = (): z.infer<typeof storedSchema> => ({
@@ -115,6 +117,8 @@ class AccountingService {
         units: normalize(row.units ?? "0", 2),
         purchasePricePerLiter: normalize(row.purchasePricePerLiter, 4),
         revenue: normalize(row.revenue, 2),
+        salePrice: normalize(row.salePrice ?? "0", 2),
+        saleFormat: row.saleFormat ?? "unit",
       })),
       productDefaults: [...productDefaults]
         .map(([productId, purchasePricePerLiter]) => ({
@@ -151,22 +155,46 @@ async function atomicWrite(targetPath: string, value: unknown) {
   await rename(temporaryPath, targetPath);
 }
 
+const SALE_FORMAT_LITERS = {
+  "25cl": 0.25,
+  "33cl": 0.33,
+  "50cl": 0.5,
+  "60cl": 0.6,
+} as const;
+
 export function accountingView(value: Awaited<ReturnType<AccountingService["get"]>>) {
   const rows = value.rows.map((row) => {
     const liters = Number(row.liters);
     const units = Number(row.units ?? "0");
     const unitPrice = Number(row.purchasePricePerLiter);
-    const cost = liters * unitPrice + units * unitPrice;
-    const result = Number(row.revenue) - cost;
-    return { ...row, liters: row.liters, units: row.units ?? "0", cost: cost.toFixed(2), result: result.toFixed(2) };
+    const quantity = units > 0 ? units : liters;
+    const cost = quantity * unitPrice;
+    const salePrice = Number(row.salePrice);
+    const expectedRevenue = row.saleFormat === "unit"
+      ? quantity * salePrice
+      : (liters / SALE_FORMAT_LITERS[row.saleFormat]) * salePrice;
+    const revenue = Number(row.revenue);
+    const variance = revenue - expectedRevenue;
+    const result = revenue - cost;
+    return {
+      ...row,
+      liters: row.liters,
+      units: row.units ?? "0",
+      cost: cost.toFixed(2),
+      expectedRevenue: expectedRevenue.toFixed(2),
+      variance: variance.toFixed(2),
+      result: result.toFixed(2),
+    };
   });
   const totals = rows.reduce((sum, row) => ({
     liters: sum.liters + Number(row.liters),
     units: sum.units + Number(row.units ?? "0"),
     cost: sum.cost + Number(row.cost),
+    expectedRevenue: sum.expectedRevenue + Number(row.expectedRevenue),
     revenue: sum.revenue + Number(row.revenue),
+    variance: sum.variance + Number(row.variance),
     result: sum.result + Number(row.result),
-  }), { liters: 0, units: 0, cost: 0, revenue: 0, result: 0 });
+  }), { liters: 0, units: 0, cost: 0, expectedRevenue: 0, revenue: 0, variance: 0, result: 0 });
   return {
     ...value,
     rows,
@@ -174,7 +202,9 @@ export function accountingView(value: Awaited<ReturnType<AccountingService["get"
       liters: totals.liters.toFixed(3).replace(/0+$/, "").replace(/\.$/, ""),
       units: totals.units.toFixed(2).replace(/0+$/, "").replace(/\.$/, ""),
       cost: totals.cost.toFixed(2),
+      expectedRevenue: totals.expectedRevenue.toFixed(2),
       revenue: totals.revenue.toFixed(2),
+      variance: totals.variance.toFixed(2),
       result: totals.result.toFixed(2),
     },
   };

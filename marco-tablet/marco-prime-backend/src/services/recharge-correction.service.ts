@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -147,7 +148,7 @@ class RechargeCorrectionService {
 
   private async write(records: RechargeCorrectionRecord[]) {
     const targetPath = this.filePath;
-    const temporaryPath = `${targetPath}.${process.pid}.tmp`;
+    const temporaryPath = `${targetPath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
     await mkdir(path.dirname(targetPath), { recursive: true });
     await writeFile(
       temporaryPath,

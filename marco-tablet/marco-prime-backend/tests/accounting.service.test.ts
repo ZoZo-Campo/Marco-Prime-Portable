@@ -49,9 +49,13 @@ describe("AccountingService", () => {
     const view = accountingView(saved);
     expect(view.rows[0]?.cost).toBe("61.45");
     expect(view.rows[0]?.result).toBe("2.35");
+    expect(view.rows[0]?.saleFormat).toBe("unit");
+    expect(view.rows[0]?.expectedRevenue).toBe("0.00");
     expect(view.totals.liters).toBe("43.77");
     expect(view.totals.cost).toBe("210.76");
     expect(view.totals.revenue).toBe("77.00");
+    expect(view.totals.expectedRevenue).toBe("0.00");
+    expect(view.totals.variance).toBe("77.00");
     expect(view.totals.result).toBe("-133.76");
     expect(view.productDefaults).toEqual([
       { productId: 1, purchasePricePerLiter: "3.14" },
@@ -151,6 +155,90 @@ describe("AccountingService", () => {
     expect(saved.productDefaults).toEqual([
       { productId: 1, purchasePricePerLiter: "3.14" },
     ]);
+  });
+
+  it("counts a single real quantity when liters and units are both present", async () => {
+    const saved = await accountingService.replace({
+      status: "draft",
+      eventName: "Soirée bouteilles",
+      eventDate: "2030-06-01",
+      rows: [
+        {
+          id: "7b97f2fc-6eab-4f43-9b9c-7e4f3d7c8a11",
+          productId: 9,
+          label: "Bouteille",
+          liters: "3",
+          units: "4",
+          purchasePricePerLiter: "2.50",
+          revenue: "20",
+          salePrice: "2.50",
+        },
+      ],
+    });
+
+    const view = accountingView(saved);
+    expect(view.rows[0]?.cost).toBe("10.00");
+    expect(view.rows[0]?.expectedRevenue).toBe("10.00");
+    expect(view.rows[0]?.variance).toBe("10.00");
+    expect(view.rows[0]?.result).toBe("10.00");
+    expect(view.totals.cost).toBe("10.00");
+    expect(view.totals.units).toBe("4");
+  });
+
+  it("computes the expected revenue of a keg from its serving format", async () => {
+    const saved = await accountingService.replace({
+      status: "draft",
+      eventName: "Soirée fût",
+      eventDate: "2030-06-02",
+      rows: [
+        {
+          id: "be2f6a3e-1b5a-4f77-9f6c-0f8f2d7a1c34",
+          productId: 1,
+          label: "Primus 25cl",
+          liters: "10",
+          purchasePricePerLiter: "3.14",
+          revenue: "70",
+          salePrice: "2.00",
+          saleFormat: "25cl",
+        },
+      ],
+    });
+
+    const view = accountingView(saved);
+    expect(view.rows[0]?.cost).toBe("31.40");
+    expect(view.rows[0]?.expectedRevenue).toBe("80.00");
+    expect(view.rows[0]?.variance).toBe("-10.00");
+    expect(view.rows[0]?.result).toBe("38.60");
+    expect(view.totals.expectedRevenue).toBe("80.00");
+    expect(view.totals.variance).toBe("-10.00");
+  });
+
+  it("computes the expected revenue of unit products", async () => {
+    const saved = await accountingService.replace({
+      status: "draft",
+      eventName: "Soirée bouteilles",
+      eventDate: "2030-06-03",
+      rows: [
+        {
+          id: "7b97f2fc-6eab-4f43-9b9c-7e4f3d7c8a12",
+          productId: 257,
+          label: "Benediktiner",
+          liters: "0",
+          units: "4",
+          purchasePricePerLiter: "1.33",
+          revenue: "9",
+          salePrice: "2.50",
+          saleFormat: "unit",
+        },
+      ],
+    });
+
+    const view = accountingView(saved);
+    expect(view.rows[0]?.cost).toBe("5.32");
+    expect(view.rows[0]?.expectedRevenue).toBe("10.00");
+    expect(view.rows[0]?.variance).toBe("-1.00");
+    expect(view.rows[0]?.result).toBe("3.68");
+    expect(view.totals.units).toBe("4");
   });
 
   it("records closure and can reopen an event without losing its rows", async () => {
