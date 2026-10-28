@@ -260,6 +260,12 @@ src/
 
 Le projet utilise Vitest pour les tests unitaires et d'intégration.
 
+`pnpm test` réinitialise d'abord la base locale `marco_prime_test` à partir de
+`marco-prime-backend/.env.test`, puis lance Vitest. Les données de démonstration
+sont donc toujours dans un état connu, sans reseed manuel. La préparation refuse
+toute base non locale ou dont le nom ne contient pas `test` : la base de
+production Fouaille n'est jamais touchée.
+
 ```bash
 # Lancer tous les tests
 pnpm test
